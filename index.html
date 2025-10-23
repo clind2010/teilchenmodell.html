@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --sim-size: 1080px;
-      --header-height: 1.2cm;
+      --sim-size: 1080px;   /* Quadratische Simulationsfläche */
+      --header-height: 1.2cm; /* Sichtbarer Kopfbereich für Temperatur/Buttons */
     }
 
     body {
@@ -17,7 +17,9 @@
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
 
+    /* Gesamtfläche: Kopf + Quadrat */
     .stage {
+      position: relative;  /* für absolute Counter-Position */
       width: var(--sim-size);
       height: calc(var(--sim-size) + var(--header-height));
       margin: 24px auto;
@@ -26,12 +28,13 @@
       background: #fff;
     }
 
+    /* Kopfzeile oben */
     .header {
       position: relative;
       height: var(--header-height);
       display: flex;
       align-items: center;
-      justify-content: space-between;   /* Temperatur links, Button rechts */
+      justify-content: space-between;   /* Temperatur links, Reset rechts */
       padding: 0 12px;
     }
 
@@ -39,6 +42,7 @@
       font-size: 16px;
       white-space: nowrap;
       user-select: none;
+      pointer-events: none;
     }
 
     button.reset {
@@ -50,11 +54,9 @@
       cursor: pointer;
       transition: background 0.2s;
     }
+    button.reset:hover { background: #ddd; }
 
-    button.reset:hover {
-      background: #ddd;
-    }
-
+    /* Quadratischer Simulationsbereich */
     .sim-wrap {
       width: var(--sim-size);
       height: var(--sim-size);
@@ -69,6 +71,18 @@
       background: #fff;
     }
 
+    /* Kollisionszähler unten rechts */
+    .counter {
+      position: absolute;
+      right: 12px;
+      bottom: 10px;
+      font-size: 14px;
+      user-select: none;
+      pointer-events: none;
+      color: #000;
+    }
+
+    /* Responsiv */
     @media (max-width: 1200px) {
       :root { --sim-size: min(90vw, 1080px); }
     }
@@ -84,6 +98,9 @@
     <div class="sim-wrap" id="simWrap">
       <canvas id="sim" aria-label="Teilchenmodell"></canvas>
     </div>
+
+    <!-- Kollisionszähler unten rechts -->
+    <div class="counter" id="collisionCounter">Kollisionen: 0</div>
   </div>
 
   <script>
@@ -104,6 +121,7 @@
     const canvas = document.getElementById("sim");
     const tempEl = document.getElementById("tempText");
     const resetBtn = document.getElementById("resetBtn");
+    const counterEl = document.getElementById("collisionCounter");
     const simWrap = document.getElementById("simWrap");
     const ctx = canvas.getContext("2d");
 
@@ -121,6 +139,7 @@
 
     // ===== Simulation =====
     let pos, vel, startTime;
+    let totalCollisions = 0; // nur Partikel-Partikel-Kollisionen
 
     const rand = (a,b) => a + Math.random() * (b - a);
     const clamp = (x,a,b) => (x < a ? a : (x > b ? b : x));
@@ -165,14 +184,17 @@
       else if (p.y + r > BOX_SIZE) { p.y = BOX_SIZE - r; v.y = -Math.abs(v.y); }
     }
 
-    function resolvePairs() {
+    // Gibt Anzahl der gezählten Partikel-Partikel-Kollisionen in diesem Durchlauf zurück.
+    function resolvePairs(countCollisions = true) {
       const r = PARTICLE_RADIUS, minDist = 2 * r;
+      let counted = 0;
       for (let i = 0; i < N; i++) {
         for (let j = i + 1; j < N; j++) {
           const dx = pos[j].x - pos[i].x;
           const dy = pos[j].y - pos[i].y;
           const dist = Math.hypot(dx, dy);
           if (dist < minDist) {
+            // Normale
             let nx, ny;
             if (dist === 0) {
               const a = Math.random() * 2 * Math.PI; nx = Math.cos(a); ny = Math.sin(a);
@@ -180,25 +202,31 @@
               nx = dx / dist; ny = dy / dist;
             }
             const overlap = minDist - dist;
+            // Trennen
             pos[i].x -= nx * (overlap / 2); pos[i].y -= ny * (overlap / 2);
             pos[j].x += nx * (overlap / 2); pos[j].y += ny * (overlap / 2);
+            // Elastischer Stoß (gleiche Massen)
             const dvx = vel[i].x - vel[j].x;
             const dvy = vel[i].y - vel[j].y;
             const vn = dvx * nx + dvy * ny;
             if (vn <= 0) {
               vel[i].x -= vn * nx; vel[i].y -= vn * ny;
               vel[j].x += vn * nx; vel[j].y += vn * ny;
+              if (countCollisions) counted++;
             }
           }
         }
       }
+      return counted;
     }
 
     function resetSimulation() {
       initPositions();
       initVelocities();
       startTime = performance.now();
+      totalCollisions = 0;
       tempEl.textContent = "Temperatur: 8.0 °C";
+      counterEl.textContent = "Kollisionen: 0";
     }
 
     function step(now) {
@@ -213,6 +241,7 @@
       let remaining = Math.min(1 / 30, 0.05);
       while (remaining > 0) {
         const dt = Math.min(DT, remaining);
+        // Geschwindigkeit normieren
         for (let i = 0; i < N; i++) {
           const v = vel[i];
           const mag = Math.hypot(v.x, v.y) || 1e-9;
@@ -220,15 +249,20 @@
           v.x = (v.x / mag) * target;
           v.y = (v.y / mag) * target;
         }
+        // Bewegung + Wände
         for (let i = 0; i < N; i++) {
           pos[i].x += vel[i].x * dt;
           pos[i].y += vel[i].y * dt;
           resolveWalls(i);
         }
-        resolvePairs(); resolvePairs();
+        // Kollisionen zwischen Partikeln: erster Pass zählt, zweiter stabilisiert
+        totalCollisions += resolvePairs(true);
+        resolvePairs(false);
+
         remaining -= dt;
       }
 
+      // Zeichnen
       const w = canvas.clientWidth, h = canvas.clientHeight;
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = "#fff";
@@ -244,15 +278,16 @@
       }
       ctx.restore();
 
+      // Anzeigen aktualisieren
       tempEl.textContent = `Temperatur: ${(T - 273.15).toFixed(1)} °C`;
+      counterEl.textContent = `Kollisionen: ${totalCollisions}`;
+
       requestAnimationFrame(step);
     }
 
-    // ===== Start =====
+    // Start & Reset
     resetSimulation();
     requestAnimationFrame(step);
-
-    // ===== Reset-Button =====
     resetBtn.addEventListener("click", resetSimulation);
   </script>
 </body>
