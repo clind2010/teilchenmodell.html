@@ -47,3 +47,213 @@
       border: 1px solid #ccc;
       border-radius: 6px;
       padding: 4px 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.reset:hover {
+      background: #ddd;
+    }
+
+    .sim-wrap {
+      width: var(--sim-size);
+      height: var(--sim-size);
+      background: #fff;
+      position: relative;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+    }
+
+    @media (max-width: 1200px) {
+      :root { --sim-size: min(90vw, 1080px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stageRoot">
+    <div class="header">
+      <div class="temp" id="tempText">Temperatur: 8.0 °C</div>
+      <button class="reset" id="resetBtn">Reset</button>
+    </div>
+
+    <div class="sim-wrap" id="simWrap">
+      <canvas id="sim" aria-label="Teilchenmodell"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // ===== Parameter =====
+    const N = 30;
+    const DURATION_S = 60;
+    const START_C = 8.0, END_C = 23.0;
+    const START_K = START_C + 273.15, END_K = END_C + 273.15;
+    const BASE_SPEED = 0.42;
+    const PARTICLE_RADIUS = 0.018;
+    const SETTLE_TIME = 1.0;
+    const MIN_START_SCALE = 0.02;
+    const DT = 0.005;
+    const COLOR = "#ff6aa2";
+    const BOX_SIZE = 1.0;
+
+    // ===== DOM-Referenzen =====
+    const canvas = document.getElementById("sim");
+    const tempEl = document.getElementById("tempText");
+    const resetBtn = document.getElementById("resetBtn");
+    const simWrap = document.getElementById("simWrap");
+    const ctx = canvas.getContext("2d");
+
+    // ===== Canvas =====
+    function resizeCanvas() {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = simWrap.clientWidth;
+      const h = simWrap.clientHeight;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas, { passive: true });
+
+    // ===== Simulation =====
+    let pos, vel, startTime;
+
+    const rand = (a,b) => a + Math.random() * (b - a);
+    const clamp = (x,a,b) => (x < a ? a : (x > b ? b : x));
+
+    function initPositions() {
+      pos = new Array(N);
+      const r = PARTICLE_RADIUS;
+      for (let i = 0; i < N; i++) {
+        let ok = false;
+        for (let t = 0; t < 30000; t++) {
+          const x = rand(r, BOX_SIZE - r);
+          const y = rand(r, BOX_SIZE - r);
+          let valid = true;
+          for (let j = 0; j < i; j++) {
+            const dx = x - pos[j].x, dy = y - pos[j].y;
+            if (Math.hypot(dx, dy) < 2 * r * 1.12) { valid = false; break; }
+          }
+          if (valid) { pos[i] = { x, y }; ok = true; break; }
+        }
+        if (!ok) throw new Error("Konnte Partikel nicht überlappungsfrei platzieren.");
+      }
+    }
+
+    function initVelocities() {
+      vel = new Array(N);
+      for (let i = 0; i < N; i++) {
+        const a = Math.random() * 2 * Math.PI;
+        vel[i] = { x: Math.cos(a) * BASE_SPEED, y: Math.sin(a) * BASE_SPEED };
+      }
+    }
+
+    function temperatureK(t) {
+      const a = clamp(t / DURATION_S, 0, 1);
+      return START_K * (1 - a) + END_K * a;
+    }
+
+    function resolveWalls(i) {
+      const r = PARTICLE_RADIUS, p = pos[i], v = vel[i];
+      if (p.x - r < 0) { p.x = r; v.x = Math.abs(v.x); }
+      else if (p.x + r > BOX_SIZE) { p.x = BOX_SIZE - r; v.x = -Math.abs(v.x); }
+      if (p.y - r < 0) { p.y = r; v.y = Math.abs(v.y); }
+      else if (p.y + r > BOX_SIZE) { p.y = BOX_SIZE - r; v.y = -Math.abs(v.y); }
+    }
+
+    function resolvePairs() {
+      const r = PARTICLE_RADIUS, minDist = 2 * r;
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          const dx = pos[j].x - pos[i].x;
+          const dy = pos[j].y - pos[i].y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < minDist) {
+            let nx, ny;
+            if (dist === 0) {
+              const a = Math.random() * 2 * Math.PI; nx = Math.cos(a); ny = Math.sin(a);
+            } else {
+              nx = dx / dist; ny = dy / dist;
+            }
+            const overlap = minDist - dist;
+            pos[i].x -= nx * (overlap / 2); pos[i].y -= ny * (overlap / 2);
+            pos[j].x += nx * (overlap / 2); pos[j].y += ny * (overlap / 2);
+            const dvx = vel[i].x - vel[j].x;
+            const dvy = vel[i].y - vel[j].y;
+            const vn = dvx * nx + dvy * ny;
+            if (vn <= 0) {
+              vel[i].x -= vn * nx; vel[i].y -= vn * ny;
+              vel[j].x += vn * nx; vel[j].y += vn * ny;
+            }
+          }
+        }
+      }
+    }
+
+    function resetSimulation() {
+      initPositions();
+      initVelocities();
+      startTime = performance.now();
+      tempEl.textContent = "Temperatur: 8.0 °C";
+    }
+
+    function step(now) {
+      const elapsed = (now - startTime) / 1000;
+      const T = temperatureK(elapsed);
+      const scaleT = Math.sqrt(T / START_K);
+      const settle = (elapsed < SETTLE_TIME)
+        ? (MIN_START_SCALE + (1 - MIN_START_SCALE) * (elapsed / SETTLE_TIME))
+        : 1.0;
+      const scale = scaleT * settle;
+
+      let remaining = Math.min(1 / 30, 0.05);
+      while (remaining > 0) {
+        const dt = Math.min(DT, remaining);
+        for (let i = 0; i < N; i++) {
+          const v = vel[i];
+          const mag = Math.hypot(v.x, v.y) || 1e-9;
+          const target = BASE_SPEED * scale;
+          v.x = (v.x / mag) * target;
+          v.y = (v.y / mag) * target;
+        }
+        for (let i = 0; i < N; i++) {
+          pos[i].x += vel[i].x * dt;
+          pos[i].y += vel[i].y * dt;
+          resolveWalls(i);
+        }
+        resolvePairs(); resolvePairs();
+        remaining -= dt;
+      }
+
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.save();
+      ctx.scale(w, h);
+      ctx.fillStyle = COLOR;
+      for (let i = 0; i < N; i++) {
+        const p = pos[i];
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, PARTICLE_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      tempEl.textContent = `Temperatur: ${(T - 273.15).toFixed(1)} °C`;
+      requestAnimationFrame(step);
+    }
+
+    // ===== Start =====
+    resetSimulation();
+    requestAnimationFrame(step);
+
+    // ===== Reset-Button =====
+    resetBtn.addEventListener("click", resetSimulation);
+  </script>
+</body>
+</html>
