@@ -1,4 +1,126 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>Test</title></head>
-<body><h1>Hallo – Test</h1><p>Wenn du das hier siehst, rendert GitHub Pages korrekt als HTML.</p></body>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Teilchenmodell – Temperatur 8°C → 23°C</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --sim-size: 1080px; } /* Simulationsgröße (quadratisch) */
+    body { margin: 0; background: #fff; color: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    .sim-wrap { position: relative; width: var(--sim-size); height: var(--sim-size); background: #fff; margin: 24px auto; }
+    .temp { position: absolute; right: 0; top: -1cm; font-size: 16px; line-height: 1; white-space: nowrap; user-select: none; pointer-events: none; color: #000; }
+    canvas { width: 100%; height: 100%; display: block; background: #fff; }
+    @media (max-width: 1200px){ :root{ --sim-size: min(90vw, 1080px);} }
+  </style>
+</head>
+<body>
+  <div class="sim-wrap" id="simRoot">
+    <div class="temp" id="temp">Temperatur: 8.0 °C</div>
+    <canvas id="sim" aria-label="Teilchenmodell"></canvas>
+  </div>
+
+  <script>
+    // Parameter
+    const N=30, DURATION_S=60, START_C=8.0, END_C=23.0;
+    const START_K=START_C+273.15, END_K=END_C+273.15;
+    const BASE_SPEED=0.42, PARTICLE_RADIUS=0.018;   // Box = 1×1
+    const SETTLE_TIME=1.0, MIN_START_SCALE=0.02, DT=0.005;
+    const COLOR="#ff6aa2", BOX_SIZE=1.0;
+
+    const canvas=document.getElementById("sim");
+    const tempEl=document.getElementById("temp");
+    const wrap=document.getElementById("simRoot");
+    const ctx=canvas.getContext("2d");
+
+    function resizeCanvas(){
+      const dpr=Math.max(1, window.devicePixelRatio||1);
+      const w=wrap.clientWidth, h=wrap.clientHeight;
+      canvas.width=Math.round(w*dpr); canvas.height=Math.round(h*dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    resizeCanvas(); window.addEventListener("resize", resizeCanvas, {passive:true});
+
+    const pos=new Array(N), vel=new Array(N);
+    const rand=(a,b)=>a+Math.random()*(b-a), clamp=(x,a,b)=>x<a?a:(x>b?b:x);
+
+    function initPositions(){
+      const r=PARTICLE_RADIUS;
+      for(let i=0;i<N;i++){
+        let ok=false;
+        for(let t=0;t<30000;t++){
+          const x=rand(r,BOX_SIZE-r), y=rand(r,BOX_SIZE-r);
+          let valid=true;
+          for(let j=0;j<i;j++){
+            const dx=x-pos[j].x, dy=y-pos[j].y;
+            if(Math.hypot(dx,dy)<2*r*1.12){ valid=false; break; }
+          }
+          if(valid){ pos[i]={x,y}; ok=true; break; }
+        }
+        if(!ok) throw new Error("Konnte Partikel nicht überlappungsfrei platzieren.");
+      }
+    }
+    function initVelocities(){
+      for(let i=0;i<N;i++){
+        const a=Math.random()*2*Math.PI;
+        vel[i]={x:Math.cos(a)*BASE_SPEED,y:Math.sin(a)*BASE_SPEED};
+      }
+    }
+    initPositions(); initVelocities();
+
+    const temperatureK=(t)=>{ const a=clamp(t/DURATION_S,0,1); return START_K*(1-a)+END_K*a; };
+
+    function wall(i){
+      const r=PARTICLE_RADIUS, p=pos[i], v=vel[i];
+      if(p.x-r<0){p.x=r; v.x=Math.abs(v.x);} else if(p.x+r>BOX_SIZE){p.x=BOX_SIZE-r; v.x=-Math.abs(v.x);}
+      if(p.y-r<0){p.y=r; v.y=Math.abs(v.y);} else if(p.y+r>BOX_SIZE){p.y=BOX_SIZE-r; v.y=-Math.abs(v.y);}
+    }
+    function pairs(){
+      const r=PARTICLE_RADIUS, minD=2*r;
+      for(let i=0;i<N;i++) for(let j=i+1;j<N;j++){
+        const dx=pos[j].x-pos[i].x, dy=pos[j].y-pos[i].y, d=Math.hypot(dx,dy);
+        if(d<minD){
+          let nx,ny;
+          if(d===0){ const a=Math.random()*2*Math.PI; nx=Math.cos(a); ny=Math.sin(a); }
+          else { nx=dx/d; ny=dy/d; }
+          const o=minD-d;
+          pos[i].x-=nx*(o/2); pos[i].y-=ny*(o/2);
+          pos[j].x+=nx*(o/2); pos[j].y+=ny*(o/2);
+          const dvx=vel[i].x-vel[j].x, dvy=vel[i].y-vel[j].y, vn=dvx*nx+dvy*ny;
+          if(vn<=0){ vel[i].x-=vn*nx; vel[i].y-=vn*ny; vel[j].x+=vn*nx; vel[j].y+=vn*ny; }
+        }
+      }
+    }
+
+    let t0=performance.now();
+    function step(now){
+      const elapsed=(now-t0)/1000;
+      const T=temperatureK(elapsed), scaleT=Math.sqrt(T/START_K);
+      const settle=elapsed<SETTLE_TIME? (MIN_START_SCALE+(1-MIN_START_SCALE)*(elapsed/SETTLE_TIME)) : 1.0;
+      const scale=scaleT*settle;
+
+      // feste Substeps
+      let remaining=Math.min(1/30,0.05);
+      while(remaining>0){
+        const dt=Math.min(DT,remaining);
+        for(let i=0;i<N;i++){
+          const v=vel[i], mag=Math.hypot(v.x,v.y)||1e-9, target=BASE_SPEED*scale;
+          v.x=(v.x/mag)*target; v.y=(v.y/mag)*target;
+        }
+        for(let i=0;i<N;i++){ pos[i].x+=vel[i].x*dt; pos[i].y+=vel[i].y*dt; wall(i); }
+        pairs(); pairs();
+        remaining-=dt;
+      }
+
+      const w=canvas.clientWidth, h=canvas.clientHeight;
+      ctx.clearRect(0,0,w,h); ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
+      ctx.save(); ctx.scale(w,h); ctx.fillStyle=COLOR;
+      for(let i=0;i<N;i++){ const p=pos[i]; ctx.beginPath(); ctx.arc(p.x,p.y,PARTICLE_RADIUS,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+
+      tempEl.textContent=`Temperatur: ${(T-273.15).toFixed(1)} °C`;
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  </script>
+</body>
 </html>
