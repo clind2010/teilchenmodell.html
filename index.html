@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --sim-size: 1080px;   /* Quadratische Simulationsfläche */
-      --header-height: 1.2cm; /* Sichtbarer Kopfbereich für Temperatur/Buttons */
+      --sim-size: 1080px;     /* Quadratgröße */
+      --header-height: 1.2cm; /* sichtbare Kopfzeile */
     }
 
     body {
@@ -19,7 +19,7 @@
 
     /* Gesamtfläche: Kopf + Quadrat */
     .stage {
-      position: relative;  /* für absolute Counter-Position */
+      position: relative; /* für die Overlays unten rechts */
       width: var(--sim-size);
       height: calc(var(--sim-size) + var(--header-height));
       margin: 24px auto;
@@ -28,23 +28,20 @@
       background: #fff;
     }
 
-    /* Kopfzeile oben */
+    /* Kopfzeile mit Temperatur + Reset */
     .header {
-      position: relative;
       height: var(--header-height);
       display: flex;
       align-items: center;
-      justify-content: space-between;   /* Temperatur links, Reset rechts */
+      justify-content: space-between;
       padding: 0 12px;
     }
-
     .temp {
       font-size: 16px;
       white-space: nowrap;
       user-select: none;
       pointer-events: none;
     }
-
     button.reset {
       font-size: 14px;
       background: #eee;
@@ -63,7 +60,6 @@
       background: #fff;
       position: relative;
     }
-
     canvas {
       width: 100%;
       height: 100%;
@@ -71,16 +67,37 @@
       background: #fff;
     }
 
-    /* Kollisionszähler unten rechts */
-    .counter {
+    /* Panel unten rechts: Kollisionsraten-Tabelle (Option 6-Stil) */
+    .rate-panel {
       position: absolute;
       right: 12px;
       bottom: 10px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 8px 10px;
       font-size: 14px;
-      user-select: none;
-      pointer-events: none;
-      color: #000;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
+    .rate-panel table {
+      border-collapse: collapse;
+    }
+    .rate-panel th,
+    .rate-panel td {
+      padding: 2px 6px;
+      border-bottom: 1px solid #eee;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .rate-panel th:first-child,
+    .rate-panel td:first-child {
+      text-align: left;
+    }
+    .rate-panel tr:last-child th,
+    .rate-panel tr:last-child td {
+      border-bottom: none;
+    }
+    .muted { color: #666; }
 
     /* Responsiv */
     @media (max-width: 1200px) {
@@ -97,35 +114,57 @@
 
     <div class="sim-wrap" id="simWrap">
       <canvas id="sim" aria-label="Teilchenmodell"></canvas>
-    </div>
 
-    <!-- Kollisionszähler unten rechts -->
-    <div class="counter" id="collisionCounter">Kollisionen: 0</div>
+      <!-- Kollisionsraten-Panel (unten rechts) -->
+      <div class="rate-panel">
+        <table>
+          <thead>
+            <tr><th>Temperatur</th><th>Kollisionsrate / s</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>8&nbsp;°C</td><td id="rate8"  class="muted">–</td></tr>
+            <tr><td>13&nbsp;°C</td><td id="rate13" class="muted">–</td></tr>
+            <tr><td>18&nbsp;°C</td><td id="rate18" class="muted">–</td></tr>
+            <tr><td>23&nbsp;°C</td><td id="rate23" class="muted">–</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script>
     // ===== Parameter =====
     const N = 30;
-    const DURATION_S = 60;
+    const DURATION_S = 60;                    // 8 °C → 23 °C linear in 60 s
     const START_C = 8.0, END_C = 23.0;
     const START_K = START_C + 273.15, END_K = END_C + 273.15;
     const BASE_SPEED = 0.42;
-    const PARTICLE_RADIUS = 0.018;
+    const PARTICLE_RADIUS = 0.018;            // Box = 1×1
     const SETTLE_TIME = 1.0;
     const MIN_START_SCALE = 0.02;
     const DT = 0.005;
     const COLOR = "#ff6aa2";
     const BOX_SIZE = 1.0;
 
-    // ===== DOM-Referenzen =====
+    // Ziel-Sekunden für die vier Temperatur-Schritte (T = 8 + 0.25 t  →  t = 4*(T-8))
+    const TARGET_SECONDS = { "8": 1, "13": 20, "18": 40, "23": 60 };
+    // Erklärung:
+    // 8°C → wir nehmen das erste volle Sek.-Fenster [0..1] → Sekunde 1
+    // 13°C → t=20 s → Fenster [19..20] → Sekunde 20
+    // 18°C → t=40 s → Fenster [39..40] → Sekunde 40
+    // 23°C → t=60 s → Fenster [59..60] → Sekunde 60
+
+    // ===== DOM =====
     const canvas = document.getElementById("sim");
     const tempEl = document.getElementById("tempText");
     const resetBtn = document.getElementById("resetBtn");
-    const counterEl = document.getElementById("collisionCounter");
     const simWrap = document.getElementById("simWrap");
+    const rate8El  = document.getElementById("rate8");
+    const rate13El = document.getElementById("rate13");
+    const rate18El = document.getElementById("rate18");
+    const rate23El = document.getElementById("rate23");
     const ctx = canvas.getContext("2d");
 
-    // ===== Canvas =====
     function resizeCanvas() {
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       const w = simWrap.clientWidth;
@@ -137,12 +176,16 @@
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas, { passive: true });
 
-    // ===== Simulation =====
+    // ===== Zustand =====
     let pos, vel, startTime;
-    let totalCollisions = 0; // nur Partikel-Partikel-Kollisionen
+    let totalCollisions = 0;
 
-    const rand = (a,b) => a + Math.random() * (b - a);
-    const clamp = (x,a,b) => (x < a ? a : (x > b ? b : x));
+    // pro-Sekunde-Kumulativwerte: totals[sec] = totalCollisions am Ende dieser Sekunde
+    let totalsBySecond = [];
+    let lastWholeSecond = -1;
+
+    const rand = (a,b)=>a + Math.random()*(b-a);
+    const clamp=(x,a,b)=>x<a?a:(x>b?b:x);
 
     function initPositions() {
       pos = new Array(N);
@@ -184,7 +227,7 @@
       else if (p.y + r > BOX_SIZE) { p.y = BOX_SIZE - r; v.y = -Math.abs(v.y); }
     }
 
-    // Gibt Anzahl der gezählten Partikel-Partikel-Kollisionen in diesem Durchlauf zurück.
+    // gibt Anzahl Partikel-Partikel-Kollisionen in diesem Durchlauf zurück
     function resolvePairs(countCollisions = true) {
       const r = PARTICLE_RADIUS, minDist = 2 * r;
       let counted = 0;
@@ -194,7 +237,6 @@
           const dy = pos[j].y - pos[i].y;
           const dist = Math.hypot(dx, dy);
           if (dist < minDist) {
-            // Normale
             let nx, ny;
             if (dist === 0) {
               const a = Math.random() * 2 * Math.PI; nx = Math.cos(a); ny = Math.sin(a);
@@ -202,10 +244,9 @@
               nx = dx / dist; ny = dy / dist;
             }
             const overlap = minDist - dist;
-            // Trennen
             pos[i].x -= nx * (overlap / 2); pos[i].y -= ny * (overlap / 2);
             pos[j].x += nx * (overlap / 2); pos[j].y += ny * (overlap / 2);
-            // Elastischer Stoß (gleiche Massen)
+
             const dvx = vel[i].x - vel[j].x;
             const dvy = vel[i].y - vel[j].y;
             const vn = dvx * nx + dvy * ny;
@@ -220,17 +261,42 @@
       return counted;
     }
 
+    function updateRatesTableIfReady(sec) {
+      // Falls wir den kumulativen Stand für diese Sekunde haben, trage die Rate ein.
+      // Rate in Sekunde s ist totals[s] - totals[s-1].
+      function setRate(temp, secIndex, el){
+        if (totalsBySecond[secIndex] != null && totalsBySecond[secIndex-1] != null) {
+          const rate = totalsBySecond[secIndex] - totalsBySecond[secIndex-1];
+          el.textContent = String(rate);
+          el.classList.remove("muted");
+        }
+      }
+      if (sec >= TARGET_SECONDS["8"])  setRate(8,  TARGET_SECONDS["8"],  rate8El);
+      if (sec >= TARGET_SECONDS["13"]) setRate(13, TARGET_SECONDS["13"], rate13El);
+      if (sec >= TARGET_SECONDS["18"]) setRate(18, TARGET_SECONDS["18"], rate18El);
+      if (sec >= TARGET_SECONDS["23"]) setRate(23, TARGET_SECONDS["23"], rate23El);
+    }
+
+    function resetRatesTable() {
+      rate8El.textContent = "–";  rate8El.classList.add("muted");
+      rate13El.textContent = "–"; rate13El.classList.add("muted");
+      rate18El.textContent = "–"; rate18El.classList.add("muted");
+      rate23El.textContent = "–"; rate23El.classList.add("muted");
+    }
+
     function resetSimulation() {
       initPositions();
       initVelocities();
       startTime = performance.now();
       totalCollisions = 0;
+      totalsBySecond = [];
+      lastWholeSecond = -1;
       tempEl.textContent = "Temperatur: 8.0 °C";
-      counterEl.textContent = "Kollisionen: 0";
+      resetRatesTable();
     }
 
     function step(now) {
-      const elapsed = (now - startTime) / 1000;
+      const elapsed = (now - startTime) / 1000; // s
       const T = temperatureK(elapsed);
       const scaleT = Math.sqrt(T / START_K);
       const settle = (elapsed < SETTLE_TIME)
@@ -238,6 +304,7 @@
         : 1.0;
       const scale = scaleT * settle;
 
+      // Physik-Substeps
       let remaining = Math.min(1 / 30, 0.05);
       while (remaining > 0) {
         const dt = Math.min(DT, remaining);
@@ -255,11 +322,20 @@
           pos[i].y += vel[i].y * dt;
           resolveWalls(i);
         }
-        // Kollisionen zwischen Partikeln: erster Pass zählt, zweiter stabilisiert
+        // Partikel-Partikel-Kollisionen: erster Pass zählt, zweiter stabilisiert
         totalCollisions += resolvePairs(true);
         resolvePairs(false);
-
         remaining -= dt;
+      }
+
+      // pro-Sekunde-Erfassung
+      const currentSec = Math.floor(elapsed);
+      if (currentSec !== lastWholeSecond) {
+        // Kumulativstand am Ende der "letzten" Sekunde ablegen
+        totalsBySecond[currentSec] = totalCollisions;
+        lastWholeSecond = currentSec;
+        // Prüfen, ob Zielsekunden erreicht → Tabelle aktualisieren
+        updateRatesTableIfReady(currentSec);
       }
 
       // Zeichnen
@@ -278,16 +354,15 @@
       }
       ctx.restore();
 
-      // Anzeigen aktualisieren
       tempEl.textContent = `Temperatur: ${(T - 273.15).toFixed(1)} °C`;
-      counterEl.textContent = `Kollisionen: ${totalCollisions}`;
-
       requestAnimationFrame(step);
     }
 
-    // Start & Reset
+    // Start
     resetSimulation();
     requestAnimationFrame(step);
+
+    // Reset-Button
     resetBtn.addEventListener("click", resetSimulation);
   </script>
 </body>
