@@ -2,59 +2,29 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Teilchenmodell – Plateaus & Kollisionsraten</title>
+  <title>Teilchenmodell – Plateaus & adaptive Schritte</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root {
-      --sim-size: 1080px;     /* Quadratgröße (z. B. 600px/900px/1080px) */
-      --header-height: 1.2cm; /* sichtbare Kopfzeile */
-    }
-
+    :root { --sim-size: 1080px; --header-height: 1.2cm; }
     body { margin: 0; background: #fff; color: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
 
-    /* Gesamtbühne: Kopf + Quadrat */
-    .stage {
-      position: relative;
-      width: var(--sim-size);
-      height: calc(var(--sim-size) + var(--header-height));
-      margin: 24px auto;
-      display: flex;
-      flex-direction: column;
-      background: #fff;
-    }
-
-    /* Kopfzeile: Temperatur (links) + Reset (rechts) */
-    .header {
-      height: var(--header-height);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-    }
+    .stage { position: relative; width: var(--sim-size); height: calc(var(--sim-size) + var(--header-height)); margin: 24px auto; display: flex; flex-direction: column; background: #fff; }
+    .header { height: var(--header-height); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
     .temp { font-size: 16px; white-space: nowrap; user-select: none; pointer-events: none; }
-    button.reset {
-      font-size: 14px; background: #eee; border: 1px solid #ccc; border-radius: 6px;
-      padding: 4px 10px; cursor: pointer; transition: background 0.2s;
-    }
+    button.reset { font-size: 14px; background: #eee; border: 1px solid #ccc; border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: background .2s; }
     button.reset:hover { background: #ddd; }
 
-    /* Quadrat für die Simulation */
-    .sim-wrap { width: var(--sim-size); height: var(--sim-size); background: #fff; position: relative; }
+    .sim-wrap { width: var(--sim-size); height: var(--sim-size); position: relative; background: #fff; }
     canvas { width: 100%; height: 100%; display: block; background: #fff; }
 
-    /* Tabelle unten rechts: Teilchen/s, Wand/s, Gesamt/s */
-    .rate-panel {
-      position: absolute; right: 12px; bottom: 10px;
-      background: rgba(255,255,255,0.9); border: 1px solid #ddd; border-radius: 8px;
-      padding: 8px 10px; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
+    .rate-panel { position: absolute; right: 12px; bottom: 10px; background: rgba(255,255,255,.9); border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
     .rate-panel table { border-collapse: collapse; }
     .rate-panel th, .rate-panel td { padding: 2px 6px; border-bottom: 1px solid #eee; white-space: nowrap; text-align: right; }
     .rate-panel th:first-child, .rate-panel td:first-child { text-align: left; }
     .rate-panel tr:last-child th, .rate-panel tr:last-child td { border-bottom: none; }
     .muted { color: #666; }
 
-    @media (max-width: 1200px) { :root { --sim-size: min(90vw, 1080px); } }
+    @media (max-width: 1200px){ :root { --sim-size: min(90vw,1080px); } }
   </style>
 </head>
 <body>
@@ -67,42 +37,16 @@
     <div class="sim-wrap" id="simWrap">
       <canvas id="sim" aria-label="Teilchenmodell"></canvas>
 
-      <!-- Kollisionsraten-Panel (unten rechts) -->
       <div class="rate-panel">
         <table>
           <thead>
-            <tr>
-              <th>Temperatur</th>
-              <th>Teilchen/s</th>
-              <th>Wand/s</th>
-              <th>Gesamt/s</th>
-            </tr>
+            <tr><th>Temperatur</th><th>Teilchen/s</th><th>Wand/s</th><th>Gesamt/s</th></tr>
           </thead>
           <tbody>
-            <tr>
-              <td>8&nbsp;°C</td>
-              <td id="rate8_p"  class="muted">–</td>
-              <td id="rate8_w"  class="muted">–</td>
-              <td id="rate8_t"  class="muted">–</td>
-            </tr>
-            <tr>
-              <td>13&nbsp;°C</td>
-              <td id="rate13_p" class="muted">–</td>
-              <td id="rate13_w" class="muted">–</td>
-              <td id="rate13_t" class="muted">–</td>
-            </tr>
-            <tr>
-              <td>18&nbsp;°C</td>
-              <td id="rate18_p" class="muted">–</td>
-              <td id="rate18_w" class="muted">–</td>
-              <td id="rate18_t" class="muted">–</td>
-            </tr>
-            <tr>
-              <td>23&nbsp;°C</td>
-              <td id="rate23_p" class="muted">–</td>
-              <td id="rate23_w" class="muted">–</td>
-              <td id="rate23_t" class="muted">–</td>
-            </tr>
+            <tr><td>8&nbsp;°C</td><td id="rate8_p"  class="muted">–</td><td id="rate8_w"  class="muted">–</td><td id="rate8_t"  class="muted">–</td></tr>
+            <tr><td>13&nbsp;°C</td><td id="rate13_p" class="muted">–</td><td id="rate13_w" class="muted">–</td><td id="rate13_t" class="muted">–</td></tr>
+            <tr><td>18&nbsp;°C</td><td id="rate18_p" class="muted">–</td><td id="rate18_w" class="muted">–</td><td id="rate18_t" class="muted">–</td></tr>
+            <tr><td>23&nbsp;°C</td><td id="rate23_p" class="muted">–</td><td id="rate23_w" class="muted">–</td><td id="rate23_t" class="muted">–</td></tr>
           </tbody>
         </table>
       </div>
@@ -112,20 +56,21 @@
   <script>
     /* ===== Parameter ===== */
     const N = 30;
-    const BASE_SPEED = 0.42;         // ästhetisch getuned
-    const PARTICLE_RADIUS = 0.018;   // Box = 1×1
-    const DT = 0.005;                // Basisschritt für Substeps
+    const BASE_SPEED = 0.42;           // Grundgeschwindigkeit (ästhetisch)
+    const PARTICLE_RADIUS = 0.018;     // Box-Koordinaten (1x1)
+    const DT_BASE = 0.005;             // Basisschritt (Obergrenze)
+    const MAX_MOVE_PER_SUB = 0.2 * PARTICLE_RADIUS; // adaptive Regel
     const COLOR = "#ff6aa2";
     const BOX_SIZE = 1.0;
 
-    // Vier Plateaus: Temperatur in °C + in Kelvin, je 2s settle + 3s messen
+    // Plateaus: je 2 s settle + 3 s messen
     const PHASES = [
       { T_C:  8, T_K:  8 + 273.15, settle: 2, measure: 3, key: 8  },
       { T_C: 13, T_K: 13 + 273.15, settle: 2, measure: 3, key: 13 },
       { T_C: 18, T_K: 18 + 273.15, settle: 2, measure: 3, key: 18 },
       { T_C: 23, T_K: 23 + 273.15, settle: 2, measure: 3, key: 23 },
     ];
-    const START_K = PHASES[0].T_K;  // für v ~ sqrt(T)
+    const START_K = PHASES[0].T_K; // für v ~ sqrt(T)
 
     /* ===== DOM ===== */
     const canvas  = document.getElementById("sim");
@@ -141,82 +86,76 @@
       23: { p: document.getElementById("rate23_p"), w: document.getElementById("rate23_w"), t: document.getElementById("rate23_t") },
     };
 
-    function resizeCanvas() {
+    function resizeCanvas(){
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       const w = simWrap.clientWidth, h = simWrap.clientHeight;
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
     }
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas, { passive: true });
+    resizeCanvas(); window.addEventListener("resize", resizeCanvas, { passive: true });
 
     /* ===== Zustand ===== */
     let pos, vel;
     let phaseIdx, phaseStart_s, measuring, measureStart_s;
-    let measureP, measureW; // Zähler innerhalb des aktuellen Messfensters
-
-    // Gesamtkumulativ (nur falls du es später brauchst)
+    let measureP, measureW;
     let totalP = 0, totalW = 0;
 
-    // Hilfsfunktionen
     const rand=(a,b)=>a + Math.random()*(b-a);
-    const clamp=(x,a,b)=>x<a?a:(x>b?b:x);
-    function initPositions() {
+
+    function initPositions(){
       pos = new Array(N);
       const r = PARTICLE_RADIUS;
-      for (let i = 0; i < N; i++) {
+      for (let i=0;i<N;i++){
         let ok=false;
-        for (let t=0; t<30000; t++) {
-          const x = rand(r, BOX_SIZE - r), y = rand(r, BOX_SIZE - r);
-          let valid = true;
-          for (let j=0; j<i; j++) {
-            const dx = x - pos[j].x, dy = y - pos[j].y;
-            if (Math.hypot(dx,dy) < 2*r*1.12) { valid=false; break; }
+        for (let t=0;t<30000;t++){
+          const x=rand(r,BOX_SIZE-r), y=rand(r,BOX_SIZE-r);
+          let valid=true;
+          for (let j=0;j<i;j++){
+            const dx=x-pos[j].x, dy=y-pos[j].y;
+            if (Math.hypot(dx,dy) < 2*r*1.12){ valid=false; break; }
           }
-          if (valid) { pos[i] = {x,y}; ok=true; break; }
+          if (valid){ pos[i]={x,y}; ok=true; break; }
         }
         if (!ok) throw new Error("Konnte Partikel nicht überlappungsfrei platzieren.");
       }
     }
-    function initVelocities() {
+    function initVelocities(){
       vel = new Array(N);
-      for (let i=0; i<N; i++) {
-        const a = Math.random()*2*Math.PI;
-        vel[i] = { x: Math.cos(a)*BASE_SPEED, y: Math.sin(a)*BASE_SPEED };
+      for (let i=0;i<N;i++){
+        const a=Math.random()*2*Math.PI;
+        vel[i]={ x:Math.cos(a)*BASE_SPEED, y:Math.sin(a)*BASE_SPEED };
       }
     }
 
-    // Wände: Anzahl Wandkollisionen in diesem Substep zurückgeben
-    function resolveWalls(i) {
-      const r = PARTICLE_RADIUS, p = pos[i], v = vel[i];
-      let hits = 0;
-      if (p.x - r < 0 && v.x < 0) { p.x = r; v.x = Math.abs(v.x); hits++; }
-      else if (p.x + r > BOX_SIZE && v.x > 0) { p.x = BOX_SIZE - r; v.x = -Math.abs(v.x); hits++; }
-      if (p.y - r < 0 && v.y < 0) { p.y = r; v.y = Math.abs(v.y); hits++; }
-      else if (p.y + r > BOX_SIZE && v.y > 0) { p.y = BOX_SIZE - r; v.y = -Math.abs(v.y); hits++; }
-      return hits; // bis zu 2 (Ecke)
+    // Wandkollisionen zählen (vermeidet Overcounting bei falscher Richtung)
+    function resolveWalls(i){
+      const r=PARTICLE_RADIUS, p=pos[i], v=vel[i];
+      let hits=0;
+      if (p.x - r < 0 && v.x < 0){ p.x=r; v.x=Math.abs(v.x); hits++; }
+      else if (p.x + r > BOX_SIZE && v.x > 0){ p.x=BOX_SIZE-r; v.x=-Math.abs(v.x); hits++; }
+      if (p.y - r < 0 && v.y < 0){ p.y=r; v.y=Math.abs(v.y); hits++; }
+      else if (p.y + r > BOX_SIZE && v.y > 0){ p.y=BOX_SIZE-r; v.y=-Math.abs(v.y); hits++; }
+      return hits; // bis zu 2 bei Ecke
     }
 
-    // Partikel-Partikel: Anzahl Kollisionen in diesem Durchlauf liefern
-    function resolvePairs(countCollisions=true) {
-      const r = PARTICLE_RADIUS, minDist = 2*r;
-      let counted = 0;
-      for (let i=0; i<N; i++) {
-        for (let j=i+1; j<N; j++) {
-          const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
-          const dist = Math.hypot(dx,dy);
-          if (dist < minDist) {
-            let nx, ny;
-            if (dist===0) { const a=Math.random()*2*Math.PI; nx=Math.cos(a); ny=Math.sin(a); }
-            else { nx = dx/dist; ny = dy/dist; }
-            const overlap = minDist - dist;
+    // Partikel-Partikel-Kollisionen zählen
+    function resolvePairs(countCollisions=true){
+      const r=PARTICLE_RADIUS, minD=2*r;
+      let counted=0;
+      for (let i=0;i<N;i++){
+        for (let j=i+1;j<N;j++){
+          const dx=pos[j].x-pos[i].x, dy=pos[j].y-pos[i].y;
+          const d=Math.hypot(dx,dy);
+          if (d < minD){
+            let nx,ny;
+            if (d===0){ const a=Math.random()*2*Math.PI; nx=Math.cos(a); ny=Math.sin(a); }
+            else { nx=dx/d; ny=dy/d; }
+            const overlap=minD-d;
             pos[i].x -= nx*(overlap/2); pos[i].y -= ny*(overlap/2);
             pos[j].x += nx*(overlap/2); pos[j].y += ny*(overlap/2);
-
-            const dvx = vel[i].x - vel[j].x, dvy = vel[i].y - vel[j].y;
-            const vn = dvx*nx + dvy*ny;
-            if (vn <= 0) {
+            const dvx=vel[i].x-vel[j].x, dvy=vel[i].y-vel[j].y;
+            const vn=dvx*nx + dvy*ny;
+            if (vn <= 0){
               vel[i].x -= vn*nx; vel[i].y -= vn*ny;
               vel[j].x += vn*nx; vel[j].y += vn*ny;
               if (countCollisions) counted++;
@@ -227,104 +166,84 @@
       return counted;
     }
 
-    // Temperaturtext und Geschwindigkeits-Skalierung
-    function applyTemperatureAndSpeed(now_s) {
+    function applyTemperatureAndSpeed(){
       const ph = PHASES[phaseIdx];
       tempEl.textContent = `Temperatur: ${ph.T_C.toFixed(1)} °C`;
-      // v ~ sqrt(T) relativ zu Starttemperatur
       const scaleT = Math.sqrt(ph.T_K / START_K);
-      for (let i=0; i<N; i++) {
-        const v = vel[i];
-        const mag = Math.hypot(v.x, v.y) || 1e-9;
-        const target = BASE_SPEED * scaleT;
-        v.x = (v.x / mag) * target;
-        v.y = (v.y / mag) * target;
+      for (let i=0;i<N;i++){
+        const v=vel[i], mag=Math.hypot(v.x,v.y) || 1e-9, target=BASE_SPEED*scaleT;
+        v.x = (v.x/mag)*target; v.y = (v.y/mag)*target;
       }
     }
 
-    // Tabelle setzen (nach Abschluss des Messfensters)
-    function setRateRow(tempKey, rateP, rateW) {
+    function setRateRow(tempKey, rateP, rateW){
       const rateT = rateP + rateW;
       const c = cells[tempKey];
       c.p.textContent = String(Math.round(rateP));
       c.w.textContent = String(Math.round(rateW));
       c.t.textContent = String(Math.round(rateT));
-      c.p.classList.remove("muted");
-      c.w.classList.remove("muted");
-      c.t.classList.remove("muted");
+      c.p.classList.remove("muted"); c.w.classList.remove("muted"); c.t.classList.remove("muted");
     }
-    function resetTable() {
-      [8,13,18,23].forEach(T => {
-        const c = cells[T];
-        c.p.textContent = "–"; c.p.classList.add("muted");
-        c.w.textContent = "–"; c.w.classList.add("muted");
-        c.t.textContent = "–"; c.t.classList.add("muted");
+    function resetTable(){
+      [8,13,18,23].forEach(T=>{
+        const c=cells[T];
+        c.p.textContent="–"; c.p.classList.add("muted");
+        c.w.textContent="–"; c.w.classList.add("muted");
+        c.t.textContent="–"; c.t.classList.add("muted");
       });
     }
 
-    /* ===== Reset & Start ===== */
-    function resetSimulation() {
-      initPositions();
-      initVelocities();
-      totalP = 0; totalW = 0;
-      phaseIdx = 0;
-      phaseStart_s = performance.now()/1000;
-      measuring = false;
-      measureStart_s = null;
-      measureP = 0; measureW = 0;
+    function resetSimulation(){
+      initPositions(); initVelocities();
+      totalP=0; totalW=0;
+      phaseIdx=0; phaseStart_s=performance.now()/1000;
+      measuring=false; measureStart_s=null; measureP=0; measureW=0;
       resetTable();
-      tempEl.textContent = "Temperatur: 8.0 °C";
+      tempEl.textContent="Temperatur: 8.0 °C";
     }
 
-    /* ===== Haupt-Loop ===== */
-    function step(now_ms) {
-      const now_s = now_ms / 1000;
+    function step(now_ms){
+      const now_s = now_ms/1000;
       const ph = PHASES[phaseIdx];
-
-      // Phasen-Logik: settle → measure → nächste Phase
       const tIn = now_s - phaseStart_s;
 
-      if (!measuring && tIn >= ph.settle) {
-        // Messfenster starten
-        measuring = true;
-        measureStart_s = now_s;
-        measureP = 0; measureW = 0;
+      // Phasensteuerung
+      if (!measuring && tIn >= ph.settle){
+        measuring = true; measureStart_s = now_s; measureP = 0; measureW = 0;
       }
-      if (measuring && (now_s - measureStart_s) >= ph.measure) {
-        // Messfenster beenden → Rate berechnen und eintragen
+      if (measuring && (now_s - measureStart_s) >= ph.measure){
         const dur = ph.measure;
-        const rateP = measureP / dur;
-        const rateW = measureW / dur;
-        setRateRow(ph.key, rateP, rateW);
-
-        // nächste Phase
+        setRateRow(ph.key, measureP/dur, measureW/dur);
         measuring = false;
-        if (phaseIdx < PHASES.length - 1) {
-          phaseIdx += 1;
-          phaseStart_s = now_s;
-        } else {
-          // letzte Phase: bleiben wir einfach dabei (kein automatischer Reset)
-        }
+        if (phaseIdx < PHASES.length - 1){ phaseIdx++; phaseStart_s = now_s; }
       }
 
-      // Geschwindigkeit an aktuelle Plateau-Temperatur anpassen
-      applyTemperatureAndSpeed(now_s);
+      // Geschwindigkeit an Plateau-Temperatur anpassen
+      applyTemperatureAndSpeed();
 
-      // Substep-Integration (fixe Obergrenze pro Frame)
-      let remaining = Math.min(1/30, 0.05);
-      while (remaining > 0) {
-        const dt = Math.min(DT, remaining);
+      // ===== Adaptive Substeps (gegen Tunneling) =====
+      // Maximalgeschwindigkeit nach dem Temperaturskalieren:
+      let vmax = 0;
+      for (let i=0;i<N;i++){
+        const s = Math.hypot(vel[i].x, vel[i].y);
+        if (s > vmax) vmax = s;
+      }
+      const sub_dt0 = Math.min(DT_BASE, MAX_MOVE_PER_SUB / Math.max(vmax, 1e-9));
+      let remaining = Math.min(1/30, 0.05); // Frame-Budget
 
-        // Bewegung
-        for (let i=0; i<N; i++) {
+      while (remaining > 0){
+        const dt = Math.min(sub_dt0, remaining);
+
+        // Bewegung + Wände (Wandschläge zählen)
+        for (let i=0;i<N;i++){
           pos[i].x += vel[i].x * dt;
           pos[i].y += vel[i].y * dt;
-          const hits = resolveWalls(i);
-          totalW += hits;
-          if (measuring) measureW += hits;
+          const hitsW = resolveWalls(i);
+          totalW += hitsW;
+          if (measuring) measureW += hitsW;
         }
 
-        // Kollisionen: erster Pass zählt, zweiter stabilisiert
+        // Teilchen-Teilchen-Kollisionen: erster Pass zählt, zweiter stabilisiert
         const hitsP = resolvePairs(true);
         resolvePairs(false);
         totalP += hitsP;
@@ -335,24 +254,19 @@
 
       // Zeichnen
       const w = canvas.clientWidth, h = canvas.clientHeight;
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
-      ctx.save(); ctx.scale(w, h); ctx.fillStyle = COLOR;
-      for (let i=0; i<N; i++) {
-        const p = pos[i];
-        ctx.beginPath(); ctx.arc(p.x, p.y, PARTICLE_RADIUS, 0, Math.PI * 2); ctx.fill();
-      }
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
+      ctx.save(); ctx.scale(w,h); ctx.fillStyle=COLOR;
+      for (let i=0;i<N;i++){ const p=pos[i]; ctx.beginPath(); ctx.arc(p.x,p.y,PARTICLE_RADIUS,0,Math.PI*2); ctx.fill(); }
       ctx.restore();
 
       requestAnimationFrame(step);
     }
 
-    /* ===== Init ===== */
+    // Init
     resizeCanvas();
     resetSimulation();
     requestAnimationFrame(step);
-
-    // Reset-Button
     resetBtn.addEventListener("click", resetSimulation);
   </script>
 </body>
