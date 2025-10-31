@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Teilchenmodell – Plateaus & adaptive Schritte</title>
+  <title>Teilchenmodell – 5–25 °C, feinere Messung</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { --sim-size: 1080px; --header-height: 1.2cm; }
@@ -30,7 +30,7 @@
 <body>
   <div class="stage" id="stageRoot">
     <div class="header">
-      <div class="temp" id="tempText">Temperatur: 8.0 °C</div>
+      <div class="temp" id="tempText">Temperatur: 5.0 °C</div>
       <button class="reset" id="resetBtn">Reset</button>
     </div>
 
@@ -43,10 +43,11 @@
             <tr><th>Temperatur</th><th>Teilchen/s</th><th>Wand/s</th><th>Gesamt/s</th></tr>
           </thead>
           <tbody>
-            <tr><td>8&nbsp;°C</td><td id="rate8_p"  class="muted">–</td><td id="rate8_w"  class="muted">–</td><td id="rate8_t"  class="muted">–</td></tr>
-            <tr><td>13&nbsp;°C</td><td id="rate13_p" class="muted">–</td><td id="rate13_w" class="muted">–</td><td id="rate13_t" class="muted">–</td></tr>
-            <tr><td>18&nbsp;°C</td><td id="rate18_p" class="muted">–</td><td id="rate18_w" class="muted">–</td><td id="rate18_t" class="muted">–</td></tr>
-            <tr><td>23&nbsp;°C</td><td id="rate23_p" class="muted">–</td><td id="rate23_w" class="muted">–</td><td id="rate23_t" class="muted">–</td></tr>
+            <tr><td>5&nbsp;°C</td>  <td id="rate5_p"  class="muted">–</td><td id="rate5_w"  class="muted">–</td><td id="rate5_t"  class="muted">–</td></tr>
+            <tr><td>10&nbsp;°C</td> <td id="rate10_p" class="muted">–</td><td id="rate10_w" class="muted">–</td><td id="rate10_t" class="muted">–</td></tr>
+            <tr><td>15&nbsp;°C</td> <td id="rate15_p" class="muted">–</td><td id="rate15_w" class="muted">–</td><td id="rate15_t" class="muted">–</td></tr>
+            <tr><td>20&nbsp;°C</td> <td id="rate20_p" class="muted">–</td><td id="rate20_w" class="muted">–</td><td id="rate20_t" class="muted">–</td></tr>
+            <tr><td>25&nbsp;°C</td> <td id="rate25_p" class="muted">–</td><td id="rate25_w" class="muted">–</td><td id="rate25_t" class="muted">–</td></tr>
           </tbody>
         </table>
       </div>
@@ -58,17 +59,18 @@
     const N = 30;
     const BASE_SPEED = 0.42;           // Grundgeschwindigkeit (ästhetisch)
     const PARTICLE_RADIUS = 0.018;     // Box-Koordinaten (1x1)
-    const DT_BASE = 0.005;             // Basisschritt (Obergrenze)
-    const MAX_MOVE_PER_SUB = 0.2 * PARTICLE_RADIUS; // adaptive Regel
+    const DT_BASE = 0.005;             // maximale Substep-Länge
+    const MAX_MOVE_PER_SUB = 0.2 * PARTICLE_RADIUS; // adaptive Regel gegen „Tunneling“
     const COLOR = "#ff6aa2";
     const BOX_SIZE = 1.0;
 
-    // Plateaus: je 2 s settle + 3 s messen
+    // 5 Plateaus: je 2 s Einschwingen + 3 s Messung
     const PHASES = [
-      { T_C:  8, T_K:  8 + 273.15, settle: 2, measure: 3, key: 8  },
-      { T_C: 13, T_K: 13 + 273.15, settle: 2, measure: 3, key: 13 },
-      { T_C: 18, T_K: 18 + 273.15, settle: 2, measure: 3, key: 18 },
-      { T_C: 23, T_K: 23 + 273.15, settle: 2, measure: 3, key: 23 },
+      { T_C:  5, T_K:  5 + 273.15, settle: 2, measure: 3, key:  5 },
+      { T_C: 10, T_K: 10 + 273.15, settle: 2, measure: 3, key: 10 },
+      { T_C: 15, T_K: 15 + 273.15, settle: 2, measure: 3, key: 15 },
+      { T_C: 20, T_K: 20 + 273.15, settle: 2, measure: 3, key: 20 },
+      { T_C: 25, T_K: 25 + 273.15, settle: 2, measure: 3, key: 25 },
     ];
     const START_K = PHASES[0].T_K; // für v ~ sqrt(T)
 
@@ -80,10 +82,11 @@
     const ctx     = canvas.getContext("2d");
 
     const cells = {
-      8:  { p: document.getElementById("rate8_p"),  w: document.getElementById("rate8_w"),  t: document.getElementById("rate8_t")  },
-      13: { p: document.getElementById("rate13_p"), w: document.getElementById("rate13_w"), t: document.getElementById("rate13_t") },
-      18: { p: document.getElementById("rate18_p"), w: document.getElementById("rate18_w"), t: document.getElementById("rate18_t") },
-      23: { p: document.getElementById("rate23_p"), w: document.getElementById("rate23_w"), t: document.getElementById("rate23_t") },
+       5:{p:rate5_p,  w:rate5_w,  t:rate5_t},
+      10:{p:rate10_p, w:rate10_w, t:rate10_t},
+      15:{p:rate15_p, w:rate15_w, t:rate15_t},
+      20:{p:rate20_p, w:rate20_w, t:rate20_t},
+      25:{p:rate25_p, w:rate25_w, t:rate25_t},
     };
 
     function resizeCanvas(){
@@ -99,6 +102,12 @@
     let phaseIdx, phaseStart_s, measuring, measureStart_s;
     let measureP, measureW;
     let totalP = 0, totalW = 0;
+
+    // feinere Messung: Sekunden-Raten im Messfenster
+    let secStart_s = null;
+    let secP = 0, secW = 0;
+    let perSecP = []; // pro Phase gesammelt
+    let perSecW = [];
 
     const rand=(a,b)=>a + Math.random()*(b-a);
 
@@ -127,7 +136,6 @@
       }
     }
 
-    // Wandkollisionen zählen (vermeidet Overcounting bei falscher Richtung)
     function resolveWalls(i){
       const r=PARTICLE_RADIUS, p=pos[i], v=vel[i];
       let hits=0;
@@ -135,10 +143,9 @@
       else if (p.x + r > BOX_SIZE && v.x > 0){ p.x=BOX_SIZE-r; v.x=-Math.abs(v.x); hits++; }
       if (p.y - r < 0 && v.y < 0){ p.y=r; v.y=Math.abs(v.y); hits++; }
       else if (p.y + r > BOX_SIZE && v.y > 0){ p.y=BOX_SIZE-r; v.y=-Math.abs(v.y); hits++; }
-      return hits; // bis zu 2 bei Ecke
+      return hits;
     }
 
-    // Partikel-Partikel-Kollisionen zählen
     function resolvePairs(countCollisions=true){
       const r=PARTICLE_RADIUS, minD=2*r;
       let counted=0;
@@ -176,20 +183,25 @@
       }
     }
 
-    function setRateRow(tempKey, rateP, rateW){
-      const rateT = rateP + rateW;
+    function setRateRow(tempKey, avgP, avgW, listP, listW){
+      const avgT = avgP + avgW;
       const c = cells[tempKey];
-      c.p.textContent = String(Math.round(rateP));
-      c.w.textContent = String(Math.round(rateW));
-      c.t.textContent = String(Math.round(rateT));
+      c.p.textContent = String(Math.round(avgP));
+      c.w.textContent = String(Math.round(avgW));
+      c.t.textContent = String(Math.round(avgT));
       c.p.classList.remove("muted"); c.w.classList.remove("muted"); c.t.classList.remove("muted");
+      // Tooltips mit Sekunden-Raten
+      c.p.title = `Sekundenraten (Teilchen/s): [${listP.join(", ")}]`;
+      c.w.title = `Sekundenraten (Wand/s): [${listW.join(", ")}]`;
+      const listT = listP.map((v,i)=>v + (listW[i]||0));
+      c.t.title = `Sekundenraten (Gesamt/s): [${listT.join(", ")}]`;
     }
     function resetTable(){
-      [8,13,18,23].forEach(T=>{
+      [5,10,15,20,25].forEach(T=>{
         const c=cells[T];
-        c.p.textContent="–"; c.p.classList.add("muted");
-        c.w.textContent="–"; c.w.classList.add("muted");
-        c.t.textContent="–"; c.t.classList.add("muted");
+        c.p.textContent="–"; c.p.classList.add("muted"); c.p.removeAttribute("title");
+        c.w.textContent="–"; c.w.classList.add("muted"); c.w.removeAttribute("title");
+        c.t.textContent="–"; c.t.classList.add("muted"); c.t.removeAttribute("title");
       });
     }
 
@@ -198,8 +210,9 @@
       totalP=0; totalW=0;
       phaseIdx=0; phaseStart_s=performance.now()/1000;
       measuring=false; measureStart_s=null; measureP=0; measureW=0;
+      secStart_s=null; secP=0; secW=0; perSecP=[]; perSecW=[];
       resetTable();
-      tempEl.textContent="Temperatur: 8.0 °C";
+      tempEl.textContent="Temperatur: 5.0 °C";
     }
 
     function step(now_ms){
@@ -209,50 +222,67 @@
 
       // Phasensteuerung
       if (!measuring && tIn >= ph.settle){
-        measuring = true; measureStart_s = now_s; measureP = 0; measureW = 0;
+        measuring = true; measureStart_s = now_s;
+        measureP = 0; measureW = 0;
+        // Sekunden-Fenster starten
+        secStart_s = now_s; secP = 0; secW = 0; perSecP=[]; perSecW=[];
       }
       if (measuring && (now_s - measureStart_s) >= ph.measure){
+        // Letzte (angefangene) Sekunde abschließen
+        const durLast = Math.max( (now_s - secStart_s), 1e-9 );
+        perSecP.push( Math.round(secP / durLast) );
+        perSecW.push( Math.round(secW / durLast) );
+
         const dur = ph.measure;
-        setRateRow(ph.key, measureP/dur, measureW/dur);
+        const avgP = measureP / dur;
+        const avgW = measureW / dur;
+        setRateRow(ph.key, avgP, avgW, perSecP, perSecW);
+
         measuring = false;
-        if (phaseIdx < PHASES.length - 1){ phaseIdx++; phaseStart_s = now_s; }
+        if (phaseIdx < PHASES.length - 1){
+          phaseIdx++; phaseStart_s = now_s;
+        }
       }
 
-      // Geschwindigkeit an Plateau-Temperatur anpassen
+      // Temperatur-/Geschwindigkeitsanpassung
       applyTemperatureAndSpeed();
 
-      // ===== Adaptive Substeps (gegen Tunneling) =====
-      // Maximalgeschwindigkeit nach dem Temperaturskalieren:
+      // Adaptive Substeps
       let vmax = 0;
-      for (let i=0;i<N;i++){
-        const s = Math.hypot(vel[i].x, vel[i].y);
-        if (s > vmax) vmax = s;
-      }
+      for (let i=0;i<N;i++){ const s=Math.hypot(vel[i].x, vel[i].y); if (s>vmax) vmax=s; }
       const sub_dt0 = Math.min(DT_BASE, MAX_MOVE_PER_SUB / Math.max(vmax, 1e-9));
-      let remaining = Math.min(1/30, 0.05); // Frame-Budget
+      let remaining = Math.min(1/30, 0.05);
 
       while (remaining > 0){
         const dt = Math.min(sub_dt0, remaining);
-
-        // Bewegung + Wände (Wandschläge zählen)
+        // Bewegung + Wände
         for (let i=0;i<N;i++){
           pos[i].x += vel[i].x * dt;
           pos[i].y += vel[i].y * dt;
           const hitsW = resolveWalls(i);
           totalW += hitsW;
-          if (measuring) measureW += hitsW;
+          if (measuring){ measureW += hitsW; secW += hitsW; }
         }
-
-        // Teilchen-Teilchen-Kollisionen: erster Pass zählt, zweiter stabilisiert
+        // Teilchen-Teilchen
         const hitsP = resolvePairs(true);
         resolvePairs(false);
         totalP += hitsP;
-        if (measuring) measureP += hitsP;
+        if (measuring){ measureP += hitsP; secP += hitsP; }
 
         remaining -= dt;
       }
 
-      // Zeichnen
+      // Sekundengenaue Feinzählung während Messung
+      if (measuring && secStart_s != null){
+        const elapsedSec = now_s - secStart_s;
+        if (elapsedSec >= 1.0){
+          perSecP.push( secP );  // schon „/s“, da 1 Sek.
+          perSecW.push( secW );
+          secStart_s = now_s; secP = 0; secW = 0;
+        }
+      }
+
+      // Rendern
       const w = canvas.clientWidth, h = canvas.clientHeight;
       ctx.clearRect(0,0,w,h);
       ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
