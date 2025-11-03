@@ -2,14 +2,14 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Teilchenmodell – 5–25 °C, feinere Messung</title>
+  <title>Teilchenmodell – 5–25 °C, Zähler unten</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root { --sim-size: 1080px; --header-height: 1.2cm; }
-    body { margin: 0; background: #fff; color: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; background: #fff; color: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; }
 
-    .stage { position: relative; width: var(--sim-size); height: calc(var(--sim-size) + var(--header-height)); margin: 24px auto; display: flex; flex-direction: column; background: #fff; }
-    .header { height: var(--header-height); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+    .stage { position: relative; width: var(--sim-size); margin: 24px auto; background: #fff; }
+    .header { height: var(--header-height); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; margin-bottom: 4px; }
     .temp { font-size: 16px; white-space: nowrap; user-select: none; pointer-events: none; }
     button.reset { font-size: 14px; background: #eee; border: 1px solid #ccc; border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: background .2s; }
     button.reset:hover { background: #ddd; }
@@ -17,9 +17,23 @@
     .sim-wrap { width: var(--sim-size); height: var(--sim-size); position: relative; background: #fff; }
     canvas { width: 100%; height: 100%; display: block; background: #fff; }
 
-    .rate-panel { position: absolute; right: 12px; bottom: 10px; background: rgba(255,255,255,.9); border: 1px solid #ddd; border-radius: 8px; padding: 8px 10px; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+    .rate-panel-wrapper {
+      width: var(--sim-size);
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .rate-panel {
+      background: rgba(255,255,255,.95);
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.1);
+      width: fit-content;
+    }
     .rate-panel table { border-collapse: collapse; }
-    .rate-panel th, .rate-panel td { padding: 2px 6px; border-bottom: 1px solid #eee; white-space: nowrap; text-align: right; }
+    .rate-panel th, .rate-panel td { padding: 3px 8px; border-bottom: 1px solid #eee; white-space: nowrap; text-align: right; }
     .rate-panel th:first-child, .rate-panel td:first-child { text-align: left; }
     .rate-panel tr:last-child th, .rate-panel tr:last-child td { border-bottom: none; }
     .muted { color: #666; }
@@ -28,26 +42,30 @@
   </style>
 </head>
 <body>
-  <div class="stage" id="stageRoot">
+  <div class="stage">
     <div class="header">
       <div class="temp" id="tempText">Temperatur: 5.0 °C</div>
       <button class="reset" id="resetBtn">Reset</button>
     </div>
 
+    <!-- Quadratischer Animationsbereich -->
     <div class="sim-wrap" id="simWrap">
       <canvas id="sim" aria-label="Teilchenmodell"></canvas>
+    </div>
 
+    <!-- Tabelle unterhalb -->
+    <div class="rate-panel-wrapper">
       <div class="rate-panel">
         <table>
           <thead>
             <tr><th>Temperatur</th><th>Teilchen/s</th><th>Wand/s</th><th>Gesamt/s</th></tr>
           </thead>
           <tbody>
-            <tr><td>5&nbsp;°C</td>  <td id="rate5_p"  class="muted">–</td><td id="rate5_w"  class="muted">–</td><td id="rate5_t"  class="muted">–</td></tr>
-            <tr><td>10&nbsp;°C</td> <td id="rate10_p" class="muted">–</td><td id="rate10_w" class="muted">–</td><td id="rate10_t" class="muted">–</td></tr>
-            <tr><td>15&nbsp;°C</td> <td id="rate15_p" class="muted">–</td><td id="rate15_w" class="muted">–</td><td id="rate15_t" class="muted">–</td></tr>
-            <tr><td>20&nbsp;°C</td> <td id="rate20_p" class="muted">–</td><td id="rate20_w" class="muted">–</td><td id="rate20_t" class="muted">–</td></tr>
-            <tr><td>25&nbsp;°C</td> <td id="rate25_p" class="muted">–</td><td id="rate25_w" class="muted">–</td><td id="rate25_t" class="muted">–</td></tr>
+            <tr><td>5 °C</td>  <td id="rate5_p"  class="muted">–</td><td id="rate5_w"  class="muted">–</td><td id="rate5_t"  class="muted">–</td></tr>
+            <tr><td>10 °C</td> <td id="rate10_p" class="muted">–</td><td id="rate10_w" class="muted">–</td><td id="rate10_t" class="muted">–</td></tr>
+            <tr><td>15 °C</td> <td id="rate15_p" class="muted">–</td><td id="rate15_w" class="muted">–</td><td id="rate15_t" class="muted">–</td></tr>
+            <tr><td>20 °C</td> <td id="rate20_p" class="muted">–</td><td id="rate20_w" class="muted">–</td><td id="rate20_t" class="muted">–</td></tr>
+            <tr><td>25 °C</td> <td id="rate25_p" class="muted">–</td><td id="rate25_w" class="muted">–</td><td id="rate25_t" class="muted">–</td></tr>
           </tbody>
         </table>
       </div>
@@ -55,16 +73,11 @@
   </div>
 
   <script>
-    /* ===== Parameter ===== */
-    const N = 30;
-    const BASE_SPEED = 0.42;           // Grundgeschwindigkeit (ästhetisch)
-    const PARTICLE_RADIUS = 0.018;     // Box-Koordinaten (1x1)
-    const DT_BASE = 0.005;             // maximale Substep-Länge
-    const MAX_MOVE_PER_SUB = 0.2 * PARTICLE_RADIUS; // adaptive Regel gegen „Tunneling“
-    const COLOR = "#ff6aa2";
-    const BOX_SIZE = 1.0;
+    /* ===== Physik- & Anzeigeparameter ===== */
+    const N = 30, BASE_SPEED = 0.42, PARTICLE_RADIUS = 0.018;
+    const DT_BASE = 0.005, MAX_MOVE_PER_SUB = 0.2 * PARTICLE_RADIUS;
+    const COLOR = "#ff6aa2", BOX_SIZE = 1.0;
 
-    // 5 Plateaus: je 2 s Einschwingen + 3 s Messung
     const PHASES = [
       { T_C:  5, T_K:  5 + 273.15, settle: 2, measure: 3, key:  5 },
       { T_C: 10, T_K: 10 + 273.15, settle: 2, measure: 3, key: 10 },
@@ -72,14 +85,10 @@
       { T_C: 20, T_K: 20 + 273.15, settle: 2, measure: 3, key: 20 },
       { T_C: 25, T_K: 25 + 273.15, settle: 2, measure: 3, key: 25 },
     ];
-    const START_K = PHASES[0].T_K; // für v ~ sqrt(T)
+    const START_K = PHASES[0].T_K;
 
-    /* ===== DOM ===== */
-    const canvas  = document.getElementById("sim");
-    const tempEl  = document.getElementById("tempText");
-    const resetBtn = document.getElementById("resetBtn");
-    const simWrap = document.getElementById("simWrap");
-    const ctx     = canvas.getContext("2d");
+    const canvas = document.getElementById("sim"), ctx = canvas.getContext("2d");
+    const tempEl = document.getElementById("tempText"), resetBtn = document.getElementById("resetBtn"), simWrap = document.getElementById("simWrap");
 
     const cells = {
        5:{p:rate5_p,  w:rate5_w,  t:rate5_t},
@@ -90,214 +99,106 @@
     };
 
     function resizeCanvas(){
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const w = simWrap.clientWidth, h = simWrap.clientHeight;
-      canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+      const dpr = Math.max(1, window.devicePixelRatio||1);
+      const w=simWrap.clientWidth, h=simWrap.clientHeight;
+      canvas.width=Math.round(w*dpr); canvas.height=Math.round(h*dpr);
       ctx.setTransform(dpr,0,0,dpr,0,0);
     }
-    resizeCanvas(); window.addEventListener("resize", resizeCanvas, { passive: true });
+    resizeCanvas(); window.addEventListener("resize", resizeCanvas);
 
-    /* ===== Zustand ===== */
-    let pos, vel;
-    let phaseIdx, phaseStart_s, measuring, measureStart_s;
-    let measureP, measureW;
-    let totalP = 0, totalW = 0;
-
-    // feinere Messung: Sekunden-Raten im Messfenster
-    let secStart_s = null;
-    let secP = 0, secW = 0;
-    let perSecP = []; // pro Phase gesammelt
-    let perSecW = [];
-
-    const rand=(a,b)=>a + Math.random()*(b-a);
+    let pos, vel, phaseIdx, phaseStart_s, measuring, measureStart_s;
+    let measureP, measureW, secStart_s, secP, secW, perSecP, perSecW;
+    const rand=(a,b)=>a+Math.random()*(b-a);
 
     function initPositions(){
-      pos = new Array(N);
-      const r = PARTICLE_RADIUS;
-      for (let i=0;i<N;i++){
+      pos=[]; const r=PARTICLE_RADIUS;
+      for(let i=0;i<N;i++){
         let ok=false;
-        for (let t=0;t<30000;t++){
+        for(let t=0;t<3e4;t++){
           const x=rand(r,BOX_SIZE-r), y=rand(r,BOX_SIZE-r);
           let valid=true;
-          for (let j=0;j<i;j++){
-            const dx=x-pos[j].x, dy=y-pos[j].y;
-            if (Math.hypot(dx,dy) < 2*r*1.12){ valid=false; break; }
+          for(let j=0;j<i;j++){ const dx=x-pos[j].x,dy=y-pos[j].y;
+            if(Math.hypot(dx,dy)<2*r*1.12){valid=false;break;}
           }
-          if (valid){ pos[i]={x,y}; ok=true; break; }
+          if(valid){pos[i]={x,y};ok=true;break;}
         }
-        if (!ok) throw new Error("Konnte Partikel nicht überlappungsfrei platzieren.");
+        if(!ok)throw new Error("keine Platzierung möglich");
       }
     }
     function initVelocities(){
-      vel = new Array(N);
-      for (let i=0;i<N;i++){
-        const a=Math.random()*2*Math.PI;
-        vel[i]={ x:Math.cos(a)*BASE_SPEED, y:Math.sin(a)*BASE_SPEED };
-      }
+      vel=[]; for(let i=0;i<N;i++){const a=Math.random()*2*Math.PI;vel[i]={x:Math.cos(a)*BASE_SPEED,y:Math.sin(a)*BASE_SPEED};}
     }
-
     function resolveWalls(i){
-      const r=PARTICLE_RADIUS, p=pos[i], v=vel[i];
-      let hits=0;
-      if (p.x - r < 0 && v.x < 0){ p.x=r; v.x=Math.abs(v.x); hits++; }
-      else if (p.x + r > BOX_SIZE && v.x > 0){ p.x=BOX_SIZE-r; v.x=-Math.abs(v.x); hits++; }
-      if (p.y - r < 0 && v.y < 0){ p.y=r; v.y=Math.abs(v.y); hits++; }
-      else if (p.y + r > BOX_SIZE && v.y > 0){ p.y=BOX_SIZE-r; v.y=-Math.abs(v.y); hits++; }
+      const r=PARTICLE_RADIUS,p=pos[i],v=vel[i];let hits=0;
+      if(p.x-r<0&&v.x<0){p.x=r;v.x=Math.abs(v.x);hits++;}
+      else if(p.x+r>BOX_SIZE&&v.x>0){p.x=BOX_SIZE-r;v.x=-Math.abs(v.x);hits++;}
+      if(p.y-r<0&&v.y<0){p.y=r;v.y=Math.abs(v.y);hits++;}
+      else if(p.y+r>BOX_SIZE&&v.y>0){p.y=BOX_SIZE-r;v.y=-Math.abs(v.y);hits++;}
       return hits;
     }
-
-    function resolvePairs(countCollisions=true){
-      const r=PARTICLE_RADIUS, minD=2*r;
-      let counted=0;
-      for (let i=0;i<N;i++){
-        for (let j=i+1;j<N;j++){
-          const dx=pos[j].x-pos[i].x, dy=pos[j].y-pos[i].y;
-          const d=Math.hypot(dx,dy);
-          if (d < minD){
-            let nx,ny;
-            if (d===0){ const a=Math.random()*2*Math.PI; nx=Math.cos(a); ny=Math.sin(a); }
-            else { nx=dx/d; ny=dy/d; }
-            const overlap=minD-d;
-            pos[i].x -= nx*(overlap/2); pos[i].y -= ny*(overlap/2);
-            pos[j].x += nx*(overlap/2); pos[j].y += ny*(overlap/2);
-            const dvx=vel[i].x-vel[j].x, dvy=vel[i].y-vel[j].y;
-            const vn=dvx*nx + dvy*ny;
-            if (vn <= 0){
-              vel[i].x -= vn*nx; vel[i].y -= vn*ny;
-              vel[j].x += vn*nx; vel[j].y += vn*ny;
-              if (countCollisions) counted++;
-            }
-          }
+    function resolvePairs(count=true){
+      const r=PARTICLE_RADIUS,minD=2*r;let c=0;
+      for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){
+        const dx=pos[j].x-pos[i].x,dy=pos[j].y-pos[i].y;const d=Math.hypot(dx,dy);
+        if(d<minD){
+          let nx,ny;if(d===0){const a=Math.random()*2*Math.PI;nx=Math.cos(a);ny=Math.sin(a);}else{nx=dx/d;ny=dy/d;}
+          const ov=minD-d;pos[i].x-=nx*(ov/2);pos[i].y-=ny*(ov/2);pos[j].x+=nx*(ov/2);pos[j].y+=ny*(ov/2);
+          const dvx=vel[i].x-vel[j].x,dvy=vel[i].y-vel[j].y,vn=dvx*nx+dvy*ny;
+          if(vn<=0){vel[i].x-=vn*nx;vel[i].y-=vn*ny;vel[j].x+=vn*nx;vel[j].y+=vn*ny;if(count)c++;}
         }
-      }
-      return counted;
+      }return c;
+    }
+    function applyTemperature(){
+      const ph=PHASES[phaseIdx];tempEl.textContent=`Temperatur: ${ph.T_C.toFixed(1)} °C`;
+      const s=Math.sqrt(ph.T_K/START_K);
+      for(let i=0;i<N;i++){const v=vel[i],m=Math.hypot(v.x,v.y)||1e-9,t=BASE_SPEED*s;v.x=(v.x/m)*t;v.y=(v.y/m)*t;}
     }
 
-    function applyTemperatureAndSpeed(){
-      const ph = PHASES[phaseIdx];
-      tempEl.textContent = `Temperatur: ${ph.T_C.toFixed(1)} °C`;
-      const scaleT = Math.sqrt(ph.T_K / START_K);
-      for (let i=0;i<N;i++){
-        const v=vel[i], mag=Math.hypot(v.x,v.y) || 1e-9, target=BASE_SPEED*scaleT;
-        v.x = (v.x/mag)*target; v.y = (v.y/mag)*target;
-      }
+    function setRow(T,avgP,avgW,listP,listW){
+      const avgT=avgP+avgW,c=cells[T];
+      c.p.textContent=Math.round(avgP);c.w.textContent=Math.round(avgW);c.t.textContent=Math.round(avgT);
+      c.p.classList.remove("muted");c.w.classList.remove("muted");c.t.classList.remove("muted");
+      c.p.title=`Sekundenraten (Teilchen/s): [${listP.join(", ")}]`;
+      c.w.title=`Sekundenraten (Wand/s): [${listW.join(", ")}]`;
+      const listT=listP.map((v,i)=>v+(listW[i]||0));
+      c.t.title=`Sekundenraten (Gesamt/s): [${listT.join(", ")}]`;
     }
+    function resetTable(){[5,10,15,20,25].forEach(T=>{const c=cells[T];["p","w","t"].forEach(k=>{c[k].textContent="–";c[k].classList.add("muted");c[k].removeAttribute("title");});});}
 
-    function setRateRow(tempKey, avgP, avgW, listP, listW){
-      const avgT = avgP + avgW;
-      const c = cells[tempKey];
-      c.p.textContent = String(Math.round(avgP));
-      c.w.textContent = String(Math.round(avgW));
-      c.t.textContent = String(Math.round(avgT));
-      c.p.classList.remove("muted"); c.w.classList.remove("muted"); c.t.classList.remove("muted");
-      // Tooltips mit Sekunden-Raten
-      c.p.title = `Sekundenraten (Teilchen/s): [${listP.join(", ")}]`;
-      c.w.title = `Sekundenraten (Wand/s): [${listW.join(", ")}]`;
-      const listT = listP.map((v,i)=>v + (listW[i]||0));
-      c.t.title = `Sekundenraten (Gesamt/s): [${listT.join(", ")}]`;
-    }
-    function resetTable(){
-      [5,10,15,20,25].forEach(T=>{
-        const c=cells[T];
-        c.p.textContent="–"; c.p.classList.add("muted"); c.p.removeAttribute("title");
-        c.w.textContent="–"; c.w.classList.add("muted"); c.w.removeAttribute("title");
-        c.t.textContent="–"; c.t.classList.add("muted"); c.t.removeAttribute("title");
-      });
-    }
-
-    function resetSimulation(){
-      initPositions(); initVelocities();
-      totalP=0; totalW=0;
-      phaseIdx=0; phaseStart_s=performance.now()/1000;
-      measuring=false; measureStart_s=null; measureP=0; measureW=0;
-      secStart_s=null; secP=0; secW=0; perSecP=[]; perSecW=[];
-      resetTable();
-      tempEl.textContent="Temperatur: 5.0 °C";
+    function resetSim(){
+      initPositions();initVelocities();
+      phaseIdx=0;phaseStart_s=performance.now()/1000;measuring=false;
+      measureStart_s=null;measureP=0;measureW=0;secStart_s=null;secP=0;secW=0;perSecP=[];perSecW=[];
+      resetTable();tempEl.textContent="Temperatur: 5.0 °C";
     }
 
     function step(now_ms){
-      const now_s = now_ms/1000;
-      const ph = PHASES[phaseIdx];
-      const tIn = now_s - phaseStart_s;
-
-      // Phasensteuerung
-      if (!measuring && tIn >= ph.settle){
-        measuring = true; measureStart_s = now_s;
-        measureP = 0; measureW = 0;
-        // Sekunden-Fenster starten
-        secStart_s = now_s; secP = 0; secW = 0; perSecP=[]; perSecW=[];
+      const now_s=now_ms/1000,ph=PHASES[phaseIdx],tIn=now_s-phaseStart_s;
+      if(!measuring&&tIn>=ph.settle){measuring=true;measureStart_s=now_s;measureP=0;measureW=0;secStart_s=now_s;secP=0;secW=0;perSecP=[];perSecW=[];}
+      if(measuring&&(now_s-measureStart_s)>=ph.measure){
+        const durLast=Math.max(now_s-secStart_s,1e-9);perSecP.push(Math.round(secP/durLast));perSecW.push(Math.round(secW/durLast));
+        const dur=ph.measure,avgP=measureP/dur,avgW=measureW/dur;setRow(ph.key,avgP,avgW,perSecP,perSecW);
+        measuring=false;if(phaseIdx<PHASES.length-1){phaseIdx++;phaseStart_s=now_s;}
       }
-      if (measuring && (now_s - measureStart_s) >= ph.measure){
-        // Letzte (angefangene) Sekunde abschließen
-        const durLast = Math.max( (now_s - secStart_s), 1e-9 );
-        perSecP.push( Math.round(secP / durLast) );
-        perSecW.push( Math.round(secW / durLast) );
-
-        const dur = ph.measure;
-        const avgP = measureP / dur;
-        const avgW = measureW / dur;
-        setRateRow(ph.key, avgP, avgW, perSecP, perSecW);
-
-        measuring = false;
-        if (phaseIdx < PHASES.length - 1){
-          phaseIdx++; phaseStart_s = now_s;
-        }
+      applyTemperature();
+      let vmax=0;for(let i=0;i<N;i++){const s=Math.hypot(vel[i].x,vel[i].y);if(s>vmax)vmax=s;}
+      const sub_dt0=Math.min(DT_BASE,MAX_MOVE_PER_SUB/Math.max(vmax,1e-9));let remaining=Math.min(1/30,0.05);
+      while(remaining>0){
+        const dt=Math.min(sub_dt0,remaining);
+        for(let i=0;i<N;i++){pos[i].x+=vel[i].x*dt;pos[i].y+=vel[i].y*dt;const hw=resolveWalls(i);if(measuring){measureW+=hw;secW+=hw;}}
+        const hp=resolvePairs(true);resolvePairs(false);if(measuring){measureP+=hp;secP+=hp;}
+        remaining-=dt;
       }
-
-      // Temperatur-/Geschwindigkeitsanpassung
-      applyTemperatureAndSpeed();
-
-      // Adaptive Substeps
-      let vmax = 0;
-      for (let i=0;i<N;i++){ const s=Math.hypot(vel[i].x, vel[i].y); if (s>vmax) vmax=s; }
-      const sub_dt0 = Math.min(DT_BASE, MAX_MOVE_PER_SUB / Math.max(vmax, 1e-9));
-      let remaining = Math.min(1/30, 0.05);
-
-      while (remaining > 0){
-        const dt = Math.min(sub_dt0, remaining);
-        // Bewegung + Wände
-        for (let i=0;i<N;i++){
-          pos[i].x += vel[i].x * dt;
-          pos[i].y += vel[i].y * dt;
-          const hitsW = resolveWalls(i);
-          totalW += hitsW;
-          if (measuring){ measureW += hitsW; secW += hitsW; }
-        }
-        // Teilchen-Teilchen
-        const hitsP = resolvePairs(true);
-        resolvePairs(false);
-        totalP += hitsP;
-        if (measuring){ measureP += hitsP; secP += hitsP; }
-
-        remaining -= dt;
-      }
-
-      // Sekundengenaue Feinzählung während Messung
-      if (measuring && secStart_s != null){
-        const elapsedSec = now_s - secStart_s;
-        if (elapsedSec >= 1.0){
-          perSecP.push( secP );  // schon „/s“, da 1 Sek.
-          perSecW.push( secW );
-          secStart_s = now_s; secP = 0; secW = 0;
-        }
-      }
-
-      // Rendern
-      const w = canvas.clientWidth, h = canvas.clientHeight;
-      ctx.clearRect(0,0,w,h);
-      ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h);
-      ctx.save(); ctx.scale(w,h); ctx.fillStyle=COLOR;
-      for (let i=0;i<N;i++){ const p=pos[i]; ctx.beginPath(); ctx.arc(p.x,p.y,PARTICLE_RADIUS,0,Math.PI*2); ctx.fill(); }
+      if(measuring&&secStart_s!=null&&now_s-secStart_s>=1.0){perSecP.push(secP);perSecW.push(secW);secStart_s=now_s;secP=0;secW=0;}
+      const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
+      ctx.save();ctx.scale(w,h);ctx.fillStyle=COLOR;
+      for(let i=0;i<N;i++){const p=pos[i];ctx.beginPath();ctx.arc(p.x,p.y,PARTICLE_RADIUS,0,2*Math.PI);ctx.fill();}
       ctx.restore();
-
       requestAnimationFrame(step);
     }
 
-    // Init
-    resizeCanvas();
-    resetSimulation();
-    requestAnimationFrame(step);
-    resetBtn.addEventListener("click", resetSimulation);
+    resizeCanvas();resetSim();requestAnimationFrame(step);
+    resetBtn.addEventListener("click",resetSim);
   </script>
 </body>
 </html>
