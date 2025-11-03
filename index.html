@@ -2,70 +2,107 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Teilchenmodell – 5–25 °C, Zähler unten</title>
+  <title>Teilchenmodell – Plateaus & Kollisionsraten</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root { --sim-size: 1080px; --header-height: 1.2cm; }
-    body { margin: 0; background: #fff; color: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; display: flex; flex-direction: column; align-items: center; }
+    :root {
+      --sim-size: 1080px;     /* Quadratgröße (z. B. 600px/900px/1080px) */
+      --header-height: 1.2cm; /* sichtbare Kopfzeile */
+    }
 
-    .stage { position: relative; width: var(--sim-size); margin: 24px auto; background: #fff; }
-    .header { height: var(--header-height); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; margin-bottom: 4px; }
+    body { margin: 0; background: #fff; color: #000; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+    /* Gesamtbühne: Kopf + Quadrat */
+    .stage {
+      position: relative;
+      width: var(--sim-size);
+      height: calc(var(--sim-size) + var(--header-height));
+      margin: 24px auto;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    /* Kopfzeile: Temperatur (links) + Reset (rechts) */
+    .header {
+      height: var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
     .temp { font-size: 16px; white-space: nowrap; user-select: none; pointer-events: none; }
-    button.reset { font-size: 14px; background: #eee; border: 1px solid #ccc; border-radius: 6px; padding: 4px 10px; cursor: pointer; transition: background .2s; }
+    button.reset {
+      font-size: 14px; background: #eee; border: 1px solid #ccc; border-radius: 6px;
+      padding: 4px 10px; cursor: pointer; transition: background 0.2s;
+    }
     button.reset:hover { background: #ddd; }
 
-    .sim-wrap { width: var(--sim-size); height: var(--sim-size); position: relative; background: #fff; }
+    /* Quadrat für die Simulation */
+    .sim-wrap { width: var(--sim-size); height: var(--sim-size); background: #fff; position: relative; }
     canvas { width: 100%; height: 100%; display: block; background: #fff; }
 
-    .rate-panel-wrapper {
-      width: var(--sim-size);
-      display: flex;
-      justify-content: center;
-      margin-top: 10px;
-    }
+    /* Tabelle unten rechts: Teilchen/s, Wand/s, Gesamt/s */
     .rate-panel {
-      background: rgba(255,255,255,.95);
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 8px 10px;
-      font-size: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.1);
-      width: fit-content;
+      position: absolute; right: 12px; bottom: 10px;
+      background: rgba(255,255,255,0.9); border: 1px solid #ddd; border-radius: 8px;
+      padding: 8px 10px; font-size: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
     .rate-panel table { border-collapse: collapse; }
-    .rate-panel th, .rate-panel td { padding: 3px 8px; border-bottom: 1px solid #eee; white-space: nowrap; text-align: right; }
+    .rate-panel th, .rate-panel td { padding: 2px 6px; border-bottom: 1px solid #eee; white-space: nowrap; text-align: right; }
     .rate-panel th:first-child, .rate-panel td:first-child { text-align: left; }
     .rate-panel tr:last-child th, .rate-panel tr:last-child td { border-bottom: none; }
     .muted { color: #666; }
 
-    @media (max-width: 1200px){ :root { --sim-size: min(90vw,1080px); } }
+    @media (max-width: 1200px) { :root { --sim-size: min(90vw, 1080px); } }
   </style>
 </head>
 <body>
-  <div class="stage">
+  <div class="stage" id="stageRoot">
     <div class="header">
-      <div class="temp" id="tempText">Temperatur: 5.0 °C</div>
+      <div class="temp" id="tempText">Temperatur: 8.0 °C</div>
       <button class="reset" id="resetBtn">Reset</button>
     </div>
 
-    <!-- Quadratischer Animationsbereich -->
     <div class="sim-wrap" id="simWrap">
       <canvas id="sim" aria-label="Teilchenmodell"></canvas>
-    </div>
 
-    <!-- Tabelle unterhalb -->
-    <div class="rate-panel-wrapper">
+      <!-- Kollisionsraten-Panel (unten rechts) -->
       <div class="rate-panel">
         <table>
           <thead>
-            <tr><th>Temperatur</th><th>Teilchen/s</th><th>Wand/s</th><th>Gesamt/s</th></tr>
+            <tr>
+              <th>Temperatur</th>
+              <th>Teilchen/s</th>
+              <th>Wand/s</th>
+              <th>Gesamt/s</th>
+            </tr>
           </thead>
           <tbody>
-            <tr><td>5 °C</td>  <td id="rate5_p"  class="muted">–</td><td id="rate5_w"  class="muted">–</td><td id="rate5_t"  class="muted">–</td></tr>
-            <tr><td>10 °C</td> <td id="rate10_p" class="muted">–</td><td id="rate10_w" class="muted">–</td><td id="rate10_t" class="muted">–</td></tr>
-            <tr><td>15 °C</td> <td id="rate15_p" class="muted">–</td><td id="rate15_w" class="muted">–</td><td id="rate15_t" class="muted">–</td></tr>
-            <tr><td>20 °C</td> <td id="rate20_p" class="muted">–</td><td id="rate20_w" class="muted">–</td><td id="rate20_t" class="muted">–</td></tr>
-            <tr><td>25 °C</td> <td id="rate25_p" class="muted">–</td><td id="rate25_w" class="muted">–</td><td id="rate25_t" class="muted">–</td></tr>
+            <tr>
+              <td>8&nbsp;°C</td>
+              <td id="rate8_p"  class="muted">–</td>
+              <td id="rate8_w"  class="muted">–</td>
+              <td id="rate8_t"  class="muted">–</td>
+            </tr>
+            <tr>
+              <td>13&nbsp;°C</td>
+              <td id="rate13_p" class="muted">–</td>
+              <td id="rate13_w" class="muted">–</td>
+              <td id="rate13_t" class="muted">–</td>
+            </tr>
+            <tr>
+              <td>18&nbsp;°C</td>
+              <td id="rate18_p" class="muted">–</td>
+              <td id="rate18_w" class="muted">–</td>
+              <td id="rate18_t" class="muted">–</td>
+            </tr>
+            <tr>
+              <td>23&nbsp;°C</td>
+              <td id="rate23_p" class="muted">–</td>
+              <td id="rate23_w" class="muted">–</td>
+              <td id="rate23_t" class="muted">–</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -73,132 +110,250 @@
   </div>
 
   <script>
-    /* ===== Physik- & Anzeigeparameter ===== */
-    const N = 30, BASE_SPEED = 0.42, PARTICLE_RADIUS = 0.018;
-    const DT_BASE = 0.005, MAX_MOVE_PER_SUB = 0.2 * PARTICLE_RADIUS;
-    const COLOR = "#ff6aa2", BOX_SIZE = 1.0;
+    /* ===== Parameter ===== */
+    const N = 30;
+    const BASE_SPEED = 0.42;         // ästhetisch getuned
+    const PARTICLE_RADIUS = 0.018;   // Box = 1×1
+    const DT = 0.005;                // Basisschritt für Substeps
+    const COLOR = "#ff6aa2";
+    const BOX_SIZE = 1.0;
 
+    // Vier Plateaus: Temperatur in °C + in Kelvin, je 2s settle + 3s messen
     const PHASES = [
-      { T_C:  5, T_K:  5 + 273.15, settle: 2, measure: 3, key:  5 },
-      { T_C: 10, T_K: 10 + 273.15, settle: 2, measure: 3, key: 10 },
-      { T_C: 15, T_K: 15 + 273.15, settle: 2, measure: 3, key: 15 },
-      { T_C: 20, T_K: 20 + 273.15, settle: 2, measure: 3, key: 20 },
-      { T_C: 25, T_K: 25 + 273.15, settle: 2, measure: 3, key: 25 },
+      { T_C:  8, T_K:  8 + 273.15, settle: 2, measure: 3, key: 8  },
+      { T_C: 13, T_K: 13 + 273.15, settle: 2, measure: 3, key: 13 },
+      { T_C: 18, T_K: 18 + 273.15, settle: 2, measure: 3, key: 18 },
+      { T_C: 23, T_K: 23 + 273.15, settle: 2, measure: 3, key: 23 },
     ];
-    const START_K = PHASES[0].T_K;
+    const START_K = PHASES[0].T_K;  // für v ~ sqrt(T)
 
-    const canvas = document.getElementById("sim"), ctx = canvas.getContext("2d");
-    const tempEl = document.getElementById("tempText"), resetBtn = document.getElementById("resetBtn"), simWrap = document.getElementById("simWrap");
+    /* ===== DOM ===== */
+    const canvas  = document.getElementById("sim");
+    const tempEl  = document.getElementById("tempText");
+    const resetBtn = document.getElementById("resetBtn");
+    const simWrap = document.getElementById("simWrap");
+    const ctx     = canvas.getContext("2d");
 
     const cells = {
-       5:{p:rate5_p,  w:rate5_w,  t:rate5_t},
-      10:{p:rate10_p, w:rate10_w, t:rate10_t},
-      15:{p:rate15_p, w:rate15_w, t:rate15_t},
-      20:{p:rate20_p, w:rate20_w, t:rate20_t},
-      25:{p:rate25_p, w:rate25_w, t:rate25_t},
+      8:  { p: document.getElementById("rate8_p"),  w: document.getElementById("rate8_w"),  t: document.getElementById("rate8_t")  },
+      13: { p: document.getElementById("rate13_p"), w: document.getElementById("rate13_w"), t: document.getElementById("rate13_t") },
+      18: { p: document.getElementById("rate18_p"), w: document.getElementById("rate18_w"), t: document.getElementById("rate18_t") },
+      23: { p: document.getElementById("rate23_p"), w: document.getElementById("rate23_w"), t: document.getElementById("rate23_t") },
     };
 
-    function resizeCanvas(){
-      const dpr = Math.max(1, window.devicePixelRatio||1);
-      const w=simWrap.clientWidth, h=simWrap.clientHeight;
-      canvas.width=Math.round(w*dpr); canvas.height=Math.round(h*dpr);
-      ctx.setTransform(dpr,0,0,dpr,0,0);
+    function resizeCanvas() {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = simWrap.clientWidth, h = simWrap.clientHeight;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    resizeCanvas(); window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas, { passive: true });
 
-    let pos, vel, phaseIdx, phaseStart_s, measuring, measureStart_s;
-    let measureP, measureW, secStart_s, secP, secW, perSecP, perSecW;
-    const rand=(a,b)=>a+Math.random()*(b-a);
+    /* ===== Zustand ===== */
+    let pos, vel;
+    let phaseIdx, phaseStart_s, measuring, measureStart_s;
+    let measureP, measureW; // Zähler innerhalb des aktuellen Messfensters
 
-    function initPositions(){
-      pos=[]; const r=PARTICLE_RADIUS;
-      for(let i=0;i<N;i++){
+    // Gesamtkumulativ (nur falls du es später brauchst)
+    let totalP = 0, totalW = 0;
+
+    // Hilfsfunktionen
+    const rand=(a,b)=>a + Math.random()*(b-a);
+    const clamp=(x,a,b)=>x<a?a:(x>b?b:x);
+    function initPositions() {
+      pos = new Array(N);
+      const r = PARTICLE_RADIUS;
+      for (let i = 0; i < N; i++) {
         let ok=false;
-        for(let t=0;t<3e4;t++){
-          const x=rand(r,BOX_SIZE-r), y=rand(r,BOX_SIZE-r);
-          let valid=true;
-          for(let j=0;j<i;j++){ const dx=x-pos[j].x,dy=y-pos[j].y;
-            if(Math.hypot(dx,dy)<2*r*1.12){valid=false;break;}
+        for (let t=0; t<30000; t++) {
+          const x = rand(r, BOX_SIZE - r), y = rand(r, BOX_SIZE - r);
+          let valid = true;
+          for (let j=0; j<i; j++) {
+            const dx = x - pos[j].x, dy = y - pos[j].y;
+            if (Math.hypot(dx,dy) < 2*r*1.12) { valid=false; break; }
           }
-          if(valid){pos[i]={x,y};ok=true;break;}
+          if (valid) { pos[i] = {x,y}; ok=true; break; }
         }
-        if(!ok)throw new Error("keine Platzierung möglich");
+        if (!ok) throw new Error("Konnte Partikel nicht überlappungsfrei platzieren.");
       }
     }
-    function initVelocities(){
-      vel=[]; for(let i=0;i<N;i++){const a=Math.random()*2*Math.PI;vel[i]={x:Math.cos(a)*BASE_SPEED,y:Math.sin(a)*BASE_SPEED};}
+    function initVelocities() {
+      vel = new Array(N);
+      for (let i=0; i<N; i++) {
+        const a = Math.random()*2*Math.PI;
+        vel[i] = { x: Math.cos(a)*BASE_SPEED, y: Math.sin(a)*BASE_SPEED };
+      }
     }
-    function resolveWalls(i){
-      const r=PARTICLE_RADIUS,p=pos[i],v=vel[i];let hits=0;
-      if(p.x-r<0&&v.x<0){p.x=r;v.x=Math.abs(v.x);hits++;}
-      else if(p.x+r>BOX_SIZE&&v.x>0){p.x=BOX_SIZE-r;v.x=-Math.abs(v.x);hits++;}
-      if(p.y-r<0&&v.y<0){p.y=r;v.y=Math.abs(v.y);hits++;}
-      else if(p.y+r>BOX_SIZE&&v.y>0){p.y=BOX_SIZE-r;v.y=-Math.abs(v.y);hits++;}
-      return hits;
+
+    // Wände: Anzahl Wandkollisionen in diesem Substep zurückgeben
+    function resolveWalls(i) {
+      const r = PARTICLE_RADIUS, p = pos[i], v = vel[i];
+      let hits = 0;
+      if (p.x - r < 0 && v.x < 0) { p.x = r; v.x = Math.abs(v.x); hits++; }
+      else if (p.x + r > BOX_SIZE && v.x > 0) { p.x = BOX_SIZE - r; v.x = -Math.abs(v.x); hits++; }
+      if (p.y - r < 0 && v.y < 0) { p.y = r; v.y = Math.abs(v.y); hits++; }
+      else if (p.y + r > BOX_SIZE && v.y > 0) { p.y = BOX_SIZE - r; v.y = -Math.abs(v.y); hits++; }
+      return hits; // bis zu 2 (Ecke)
     }
-    function resolvePairs(count=true){
-      const r=PARTICLE_RADIUS,minD=2*r;let c=0;
-      for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){
-        const dx=pos[j].x-pos[i].x,dy=pos[j].y-pos[i].y;const d=Math.hypot(dx,dy);
-        if(d<minD){
-          let nx,ny;if(d===0){const a=Math.random()*2*Math.PI;nx=Math.cos(a);ny=Math.sin(a);}else{nx=dx/d;ny=dy/d;}
-          const ov=minD-d;pos[i].x-=nx*(ov/2);pos[i].y-=ny*(ov/2);pos[j].x+=nx*(ov/2);pos[j].y+=ny*(ov/2);
-          const dvx=vel[i].x-vel[j].x,dvy=vel[i].y-vel[j].y,vn=dvx*nx+dvy*ny;
-          if(vn<=0){vel[i].x-=vn*nx;vel[i].y-=vn*ny;vel[j].x+=vn*nx;vel[j].y+=vn*ny;if(count)c++;}
+
+    // Partikel-Partikel: Anzahl Kollisionen in diesem Durchlauf liefern
+    function resolvePairs(countCollisions=true) {
+      const r = PARTICLE_RADIUS, minDist = 2*r;
+      let counted = 0;
+      for (let i=0; i<N; i++) {
+        for (let j=i+1; j<N; j++) {
+          const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+          const dist = Math.hypot(dx,dy);
+          if (dist < minDist) {
+            let nx, ny;
+            if (dist===0) { const a=Math.random()*2*Math.PI; nx=Math.cos(a); ny=Math.sin(a); }
+            else { nx = dx/dist; ny = dy/dist; }
+            const overlap = minDist - dist;
+            pos[i].x -= nx*(overlap/2); pos[i].y -= ny*(overlap/2);
+            pos[j].x += nx*(overlap/2); pos[j].y += ny*(overlap/2);
+
+            const dvx = vel[i].x - vel[j].x, dvy = vel[i].y - vel[j].y;
+            const vn = dvx*nx + dvy*ny;
+            if (vn <= 0) {
+              vel[i].x -= vn*nx; vel[i].y -= vn*ny;
+              vel[j].x += vn*nx; vel[j].y += vn*ny;
+              if (countCollisions) counted++;
+            }
+          }
         }
-      }return c;
-    }
-    function applyTemperature(){
-      const ph=PHASES[phaseIdx];tempEl.textContent=`Temperatur: ${ph.T_C.toFixed(1)} °C`;
-      const s=Math.sqrt(ph.T_K/START_K);
-      for(let i=0;i<N;i++){const v=vel[i],m=Math.hypot(v.x,v.y)||1e-9,t=BASE_SPEED*s;v.x=(v.x/m)*t;v.y=(v.y/m)*t;}
-    }
-
-    function setRow(T,avgP,avgW,listP,listW){
-      const avgT=avgP+avgW,c=cells[T];
-      c.p.textContent=Math.round(avgP);c.w.textContent=Math.round(avgW);c.t.textContent=Math.round(avgT);
-      c.p.classList.remove("muted");c.w.classList.remove("muted");c.t.classList.remove("muted");
-      c.p.title=`Sekundenraten (Teilchen/s): [${listP.join(", ")}]`;
-      c.w.title=`Sekundenraten (Wand/s): [${listW.join(", ")}]`;
-      const listT=listP.map((v,i)=>v+(listW[i]||0));
-      c.t.title=`Sekundenraten (Gesamt/s): [${listT.join(", ")}]`;
-    }
-    function resetTable(){[5,10,15,20,25].forEach(T=>{const c=cells[T];["p","w","t"].forEach(k=>{c[k].textContent="–";c[k].classList.add("muted");c[k].removeAttribute("title");});});}
-
-    function resetSim(){
-      initPositions();initVelocities();
-      phaseIdx=0;phaseStart_s=performance.now()/1000;measuring=false;
-      measureStart_s=null;measureP=0;measureW=0;secStart_s=null;secP=0;secW=0;perSecP=[];perSecW=[];
-      resetTable();tempEl.textContent="Temperatur: 5.0 °C";
-    }
-
-    function step(now_ms){
-      const now_s=now_ms/1000,ph=PHASES[phaseIdx],tIn=now_s-phaseStart_s;
-      if(!measuring&&tIn>=ph.settle){measuring=true;measureStart_s=now_s;measureP=0;measureW=0;secStart_s=now_s;secP=0;secW=0;perSecP=[];perSecW=[];}
-      if(measuring&&(now_s-measureStart_s)>=ph.measure){
-        const durLast=Math.max(now_s-secStart_s,1e-9);perSecP.push(Math.round(secP/durLast));perSecW.push(Math.round(secW/durLast));
-        const dur=ph.measure,avgP=measureP/dur,avgW=measureW/dur;setRow(ph.key,avgP,avgW,perSecP,perSecW);
-        measuring=false;if(phaseIdx<PHASES.length-1){phaseIdx++;phaseStart_s=now_s;}
       }
-      applyTemperature();
-      let vmax=0;for(let i=0;i<N;i++){const s=Math.hypot(vel[i].x,vel[i].y);if(s>vmax)vmax=s;}
-      const sub_dt0=Math.min(DT_BASE,MAX_MOVE_PER_SUB/Math.max(vmax,1e-9));let remaining=Math.min(1/30,0.05);
-      while(remaining>0){
-        const dt=Math.min(sub_dt0,remaining);
-        for(let i=0;i<N;i++){pos[i].x+=vel[i].x*dt;pos[i].y+=vel[i].y*dt;const hw=resolveWalls(i);if(measuring){measureW+=hw;secW+=hw;}}
-        const hp=resolvePairs(true);resolvePairs(false);if(measuring){measureP+=hp;secP+=hp;}
-        remaining-=dt;
+      return counted;
+    }
+
+    // Temperaturtext und Geschwindigkeits-Skalierung
+    function applyTemperatureAndSpeed(now_s) {
+      const ph = PHASES[phaseIdx];
+      tempEl.textContent = `Temperatur: ${ph.T_C.toFixed(1)} °C`;
+      // v ~ sqrt(T) relativ zu Starttemperatur
+      const scaleT = Math.sqrt(ph.T_K / START_K);
+      for (let i=0; i<N; i++) {
+        const v = vel[i];
+        const mag = Math.hypot(v.x, v.y) || 1e-9;
+        const target = BASE_SPEED * scaleT;
+        v.x = (v.x / mag) * target;
+        v.y = (v.y / mag) * target;
       }
-      if(measuring&&secStart_s!=null&&now_s-secStart_s>=1.0){perSecP.push(secP);perSecW.push(secW);secStart_s=now_s;secP=0;secW=0;}
-      const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
-      ctx.save();ctx.scale(w,h);ctx.fillStyle=COLOR;
-      for(let i=0;i<N;i++){const p=pos[i];ctx.beginPath();ctx.arc(p.x,p.y,PARTICLE_RADIUS,0,2*Math.PI);ctx.fill();}
+    }
+
+    // Tabelle setzen (nach Abschluss des Messfensters)
+    function setRateRow(tempKey, rateP, rateW) {
+      const rateT = rateP + rateW;
+      const c = cells[tempKey];
+      c.p.textContent = String(Math.round(rateP));
+      c.w.textContent = String(Math.round(rateW));
+      c.t.textContent = String(Math.round(rateT));
+      c.p.classList.remove("muted");
+      c.w.classList.remove("muted");
+      c.t.classList.remove("muted");
+    }
+    function resetTable() {
+      [8,13,18,23].forEach(T => {
+        const c = cells[T];
+        c.p.textContent = "–"; c.p.classList.add("muted");
+        c.w.textContent = "–"; c.w.classList.add("muted");
+        c.t.textContent = "–"; c.t.classList.add("muted");
+      });
+    }
+
+    /* ===== Reset & Start ===== */
+    function resetSimulation() {
+      initPositions();
+      initVelocities();
+      totalP = 0; totalW = 0;
+      phaseIdx = 0;
+      phaseStart_s = performance.now()/1000;
+      measuring = false;
+      measureStart_s = null;
+      measureP = 0; measureW = 0;
+      resetTable();
+      tempEl.textContent = "Temperatur: 8.0 °C";
+    }
+
+    /* ===== Haupt-Loop ===== */
+    function step(now_ms) {
+      const now_s = now_ms / 1000;
+      const ph = PHASES[phaseIdx];
+
+      // Phasen-Logik: settle → measure → nächste Phase
+      const tIn = now_s - phaseStart_s;
+
+      if (!measuring && tIn >= ph.settle) {
+        // Messfenster starten
+        measuring = true;
+        measureStart_s = now_s;
+        measureP = 0; measureW = 0;
+      }
+      if (measuring && (now_s - measureStart_s) >= ph.measure) {
+        // Messfenster beenden → Rate berechnen und eintragen
+        const dur = ph.measure;
+        const rateP = measureP / dur;
+        const rateW = measureW / dur;
+        setRateRow(ph.key, rateP, rateW);
+
+        // nächste Phase
+        measuring = false;
+        if (phaseIdx < PHASES.length - 1) {
+          phaseIdx += 1;
+          phaseStart_s = now_s;
+        } else {
+          // letzte Phase: bleiben wir einfach dabei (kein automatischer Reset)
+        }
+      }
+
+      // Geschwindigkeit an aktuelle Plateau-Temperatur anpassen
+      applyTemperatureAndSpeed(now_s);
+
+      // Substep-Integration (fixe Obergrenze pro Frame)
+      let remaining = Math.min(1/30, 0.05);
+      while (remaining > 0) {
+        const dt = Math.min(DT, remaining);
+
+        // Bewegung
+        for (let i=0; i<N; i++) {
+          pos[i].x += vel[i].x * dt;
+          pos[i].y += vel[i].y * dt;
+          const hits = resolveWalls(i);
+          totalW += hits;
+          if (measuring) measureW += hits;
+        }
+
+        // Kollisionen: erster Pass zählt, zweiter stabilisiert
+        const hitsP = resolvePairs(true);
+        resolvePairs(false);
+        totalP += hitsP;
+        if (measuring) measureP += hitsP;
+
+        remaining -= dt;
+      }
+
+      // Zeichnen
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+      ctx.save(); ctx.scale(w, h); ctx.fillStyle = COLOR;
+      for (let i=0; i<N; i++) {
+        const p = pos[i];
+        ctx.beginPath(); ctx.arc(p.x, p.y, PARTICLE_RADIUS, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.restore();
+
       requestAnimationFrame(step);
     }
 
-    resizeCanvas();resetSim();requestAnimationFrame(step);
-    resetBtn.addEventListener("click",resetSim);
+    /* ===== Init ===== */
+    resizeCanvas();
+    resetSimulation();
+    requestAnimationFrame(step);
+
+    // Reset-Button
+    resetBtn.addEventListener("click", resetSimulation);
   </script>
 </body>
 </html>
